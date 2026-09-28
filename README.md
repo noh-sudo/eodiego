@@ -4,8 +4,7 @@
 
 ## 서비스 바로가기
 
-- 배포 사이트: [https://eodiego.yegi1929.chatgpt.site/](https://eodiego.yegi1929.chatgpt.site/)
-- GitHub 저장소: [https://github.com/yegi1929-svg/eodiego](https://github.com/yegi1929-svg/eodiego)
+- 배포 사이트: [https://eodiego-jeju.duckdns.org/](https://eodiego-jeju.duckdns.org/)
 
 ## 주요 화면과 기능
 
@@ -18,7 +17,7 @@
 ### 코스 짜기
 
 - 출발 지역과 여행 예산 선택
-- 선택 조건을 바탕으로 2박 3일 제주 여행 코스 표시
+- 선택 조건을 바탕으로 제주 여행 코스 표시
 - 로그인 여부에 따른 일정 저장 버튼 상태 처리
 
 ### 제주 추천
@@ -47,82 +46,18 @@
 - 모바일과 데스크톱 화면을 고려한 반응형 레이아웃
 - Open Graph 이미지와 페이지 메타데이터 적용
 
-## 기술 스택
-
-- TypeScript
-- React 19
-- Next.js 16
-- Vinext
-- Vite 8
-- Tailwind CSS 4
-- Cloudflare Workers / D1 연동 구조
-- Drizzle ORM
-
-## 프로젝트 구조
-
-```text
-eodiego/
-├─ app/                  # 화면, 레이아웃, 전역 스타일
-├─ public/               # 이미지, 아이콘, 폰트 등 정적 파일
-├─ db/                   # D1 연결 및 Drizzle 스키마
-├─ drizzle/              # 데이터베이스 마이그레이션 파일
-├─ scripts/              # 설치·빌드 보조 스크립트
-├─ tests/                # 렌더링 결과 테스트
-├─ worker/               # Cloudflare Worker 관련 코드
-└─ package.json          # 의존성과 실행 명령
-```
-
-## 로컬 실행 방법
-
-### 요구 사항
-
-- Node.js 22.13.0 이상
-- npm
-- Bash를 실행할 수 있는 Linux, WSL 또는 호환 환경
-
-### 설치 및 실행
-
-```bash
-git clone https://github.com/yegi1929-svg/eodiego.git
-cd eodiego
-npm ci
-npm run dev
-```
-
-개발 서버가 실행되면 터미널에 표시된 로컬 주소로 접속합니다.
-
-## 주요 명령어
-
-```bash
-npm run dev          # 개발 서버 실행
-npm run build        # 배포용 빌드
-npm run start        # 빌드 결과 실행
-npm run lint         # 코드 검사
-npm test             # 빌드 및 렌더링 결과 테스트
-npm run db:generate  # Drizzle 마이그레이션 생성
-```
-
-## 데이터베이스 연동 상태
-
-프로젝트에는 Cloudflare D1과 Drizzle ORM을 연결할 수 있는 기본 구조가 포함되어 있습니다. 다만 현재 `db/schema.ts`에는 실제 서비스 테이블이 정의되어 있지 않으며, 로그인 정보와 저장한 일정도 데이터베이스에 영구 저장되지 않습니다.
-
-실제 서비스를 운영하려면 다음 작업이 필요합니다.
-
-1. 사용자, 여행 코스, 추천 장소, 저장 목록 테이블 설계
-2. Drizzle 스키마와 마이그레이션 작성
-3. 서버 API 또는 Server Action 구현
-4. 실제 인증 시스템 연결
-5. 입력값 검증과 접근 권한 처리
-
 ## 현재 구현 범위
 
-현재 저장소는 어디GO의 UI·UX와 주요 사용자 흐름을 확인할 수 있는 프런트엔드 프로토타입입니다. 로그인, 회원가입, 일정 저장 버튼은 화면에서 동작하지만 새로고침 후에도 유지되는 실제 계정 또는 데이터 저장 기능은 아직 포함하지 않습니다.
+- 여행 조건 입력
+- 일차별 코스 확인
+- 일정 저장, 조회
+- 회원가입, 로그인
+- 마이페이지
+- 혼잡도 표시
+- 개인정보 보호
 
 ## 향후 개발 항목
 
-- 실제 회원 인증과 사용자 세션 관리
-- 제주 관광 데이터 API 연동
-- 사용자 조건에 따른 여행 코스 생성
-- 일정 저장, 수정, 삭제 기능
-- 마이페이지 여행 기록과 통계 데이터 연동
 - 운영 환경용 보안 및 오류 처리
+- 예산·다일정·친구초대·추가 개인정보 저장
+- LLM api 활성화
