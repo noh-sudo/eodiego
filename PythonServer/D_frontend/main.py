@@ -170,19 +170,12 @@ async def places_nearby(req: LocationReq):
 
 
 class CongestionBody(BaseModel):
-    """targets(이름 포함)를 주면 B가 상세 재조회를 건너뛴다.
-    content_ids는 하위 호환 경로."""
+    """targets(이름 포함)를 주면 B가 상세 재조회를 건너뛴다."""
 
     travel_date: str
     targets: list[CongestionTarget] = []
-    content_ids: list[str] = []
     area_cd: str = "50"
     l_dong_signgu_cd: str = "110"
-
-    def to_targets(self) -> list[CongestionTarget]:
-        if self.targets:
-            return self.targets
-        return [CongestionTarget(content_id=cid) for cid in self.content_ids]
 
 
 @app.post("/ui/places/congestion")
@@ -191,7 +184,7 @@ async def places_congestion(body: CongestionBody):
 
     try:
         raw = await places_client.congestion(
-            body.to_targets(), body.area_cd, body.l_dong_signgu_cd
+            body.targets, body.area_cd, body.l_dong_signgu_cd
         )
     except (UpstreamUnavailableError, UpstreamRejectedError) as exc:
         # 집중률 실패는 일정 생성 자체를 막지 않는다 - 관광지 정보만으로 계속한다.

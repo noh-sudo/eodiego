@@ -176,14 +176,6 @@ async def get_congestion_by_name(
     )
 
 
-async def get_congestion_for_place(
-    place: Place, area_cd: str, l_dong_signgu_cd: str
-) -> Congestion:
-    """Place를 이미 들고 있을 때 쓰는 편의 래퍼."""
-
-    return await get_congestion_by_name(place.content_id, place.name, area_cd, l_dong_signgu_cd)
-
-
 async def resolve_target_names(targets: list[CongestionTarget]) -> list[tuple[str, str]]:
     """이름이 없는 대상만 상세조회로 채운다.
 
@@ -226,15 +218,3 @@ async def get_congestion_for_targets(
         *[get_congestion_by_name(cid, name, area_cd, l_dong_signgu_cd) for cid, name in pairs]
     )
     return {c.content_id: c for c in results}
-
-
-async def get_congestion_for_places(
-    places: list[Place], area_cd: str, l_dong_signgu_cd: str
-) -> dict[str, Congestion]:
-    """Place 목록을 이미 들고 있을 때 쓰는 편의 래퍼 (이름을 알므로 상세조회 없음)."""
-
-    return await get_congestion_for_targets(
-        [CongestionTarget(content_id=p.content_id, name=p.name) for p in places],
-        area_cd,
-        l_dong_signgu_cd,
-    )

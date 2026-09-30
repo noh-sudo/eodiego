@@ -15,11 +15,9 @@
 
 import asyncio
 
-import httpx
 import pytest
 
 from B_openapi import client, config, service
-from shared.schemas import Place
 
 SAMPLE_ITEMS = [
     {"baseYmd": "20260902", "areaCd": "50", "areaNm": "제주특별자치도", "signguCd": "50110", "signguNm": "제주시", "tAtsNm": "신산공원", "cnctrRate": "42.33"},
@@ -93,15 +91,14 @@ def test_result_code_error_raises_upstream_api_error(monkeypatch):
         asyncio.run(client.fetch_congestion_candidates("신산공원", "50", "50110"))
 
 
-def test_get_congestion_for_place_groups_daily_rows_from_real_shape(monkeypatch):
+def test_get_congestion_by_name_groups_daily_rows_from_real_shape(monkeypatch):
     async def fake_fetch(t_ats_nm, area_cd, signgu_cd):
         return SAMPLE_ITEMS
 
     monkeypatch.setattr(config, "USE_MOCK", False)
     monkeypatch.setattr(service, "fetch_congestion_candidates", fake_fetch)
 
-    place = Place(content_id="1", name="신산공원", addr="", map_x=126.5, map_y=33.5, dist=0.0, image=None)
-    congestion = asyncio.run(service.get_congestion_for_place(place, "50", "110"))
+    congestion = asyncio.run(service.get_congestion_by_name("1", "신산공원", "50", "110"))
 
     assert congestion.has_data is True
     assert len(congestion.daily) == 4

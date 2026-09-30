@@ -2,7 +2,7 @@
 
 import asyncio
 
-from shared.schemas import LocationReq
+from shared.schemas import CongestionTarget, LocationReq
 
 from B_openapi import mock_data, region, service
 
@@ -31,10 +31,10 @@ def test_get_places_uses_mock_by_default():
     assert len(places) > 0
 
 
-def test_get_congestion_for_places_limits_candidates(monkeypatch):
+def test_get_congestion_for_targets_limits_candidates(monkeypatch):
     monkeypatch.setattr(service.config, "MAX_CANDIDATES_FOR_CONGESTION", 2)
-    places = mock_data.mock_places()
-    result = asyncio.run(service.get_congestion_for_places(places, "50", "110"))
+    targets = [CongestionTarget(content_id=p.content_id, name=p.name) for p in mock_data.mock_places()]
+    result = asyncio.run(service.get_congestion_for_targets(targets, "50", "110"))
     assert len(result) == 2
 
 

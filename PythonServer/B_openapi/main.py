@@ -90,39 +90,19 @@ async def place_details(req: PlaceDetailsRequest):
     return await service.get_place_details(req.content_ids)
 
 
-@app.get("/internal/places/{content_id}", response_model=Place | None)
-async def place_detail(content_id: str):
-    try:
-        place = await service.get_place_detail(content_id)
-    except (UpstreamTimeoutError, UpstreamAPIError) as exc:
-        raise HTTPException(status_code=502, detail=_to_error_response(exc).model_dump()) from exc
-    if place is None:
-        raise HTTPException(status_code=404, detail={"error": {"code": "NOT_FOUND", "message": "관광지를 찾을 수 없습니다."}})
-    return place
-
-
 class CongestionBatchRequest(BaseModel):
-    """targets 로 이름까지 주면 상세조회를 건너뛴다 (관광지당 2회 -> 1회).
-
-    content_ids 는 이름을 모르는 호출측을 위한 하위 호환 경로다.
-    """
+    """targets 로 이름까지 주면 상세조회를 건너뛴다 (관광지당 2회 -> 1회)."""
 
     targets: list[CongestionTarget] = []
-    content_ids: list[str] = []
     area_cd: str = "50"
     l_dong_signgu_cd: str = "110"
-
-    def to_targets(self) -> list[CongestionTarget]:
-        if self.targets:
-            return self.targets
-        return [CongestionTarget(content_id=cid) for cid in self.content_ids]
 
 
 @app.post("/internal/congestion", response_model=dict[str, Congestion])
 async def congestion_batch(req: CongestionBatchRequest):
     try:
         return await service.get_congestion_for_targets(
-            req.to_targets(), req.area_cd, req.l_dong_signgu_cd
+            req.targets, req.area_cd, req.l_dong_signgu_cd
         )
     except (UpstreamTimeoutError, UpstreamAPIError) as exc:
         raise HTTPException(status_code=502, detail=_to_error_response(exc).model_dump()) from exc

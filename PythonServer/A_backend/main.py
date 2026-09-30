@@ -124,12 +124,6 @@ def delete_plan(plan_id: int, user_id: int = Depends(auth.get_current_user_requi
     return None
 
 
-@app.get("/mypage")
-def mypage(user_id: int = Depends(auth.get_current_user_required)):
-    row = db.get_user_by_id(user_id)
-    return {"user": UserPublic(user_id=row["user_id"], username=row["username"]), "plans": plan_service.list_plans(user_id)}
-
-
 if __name__ == "__main__":
     import uvicorn
 
