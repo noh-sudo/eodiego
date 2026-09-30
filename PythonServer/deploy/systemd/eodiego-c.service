@@ -1,0 +1,25 @@
+[Unit]
+Description=Eodiego C itinerary planner
+Wants=network-online.target
+After=network-online.target eodiego-b.service
+PartOf=eodiego.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=eodiego
+Group=eodiego
+WorkingDirectory=/opt/eodiego/app
+EnvironmentFile=/etc/eodiego/eodiego.env
+Environment=PYTHONPATH=/opt/eodiego/app PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/opt/eodiego/venv/bin/python /opt/eodiego/app/deploy/check_env.py
+ExecStart=/opt/eodiego/venv/bin/python -m uvicorn C_ai_planner.main:app --host 127.0.0.1 --port 8002 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictSUIDSGID=true

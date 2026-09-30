@@ -1,0 +1,7 @@
+[Unit]
+Description=Eodiego backend services
+Wants=network-online.target eodiego-a.service eodiego-b.service eodiego-c.service eodiego-d.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target
