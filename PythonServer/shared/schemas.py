@@ -1,13 +1,4 @@
-"""팀 공통 API 계약 (schemas.py).
-
-A/B/C/D 모든 서비스가 공유하는 Pydantic 모델이다.
-임의로 변경하지 않는다. 변경이 필요하면 팀에 먼저 공유한다.
-
-A_backend_auth.md 2절의 계약을 기준으로 하고, B_openapi.md 7절에서 제안한
-Place 보완 필드(content_type_id/category/운영시간/휴무일/예상 체류시간)만
-선택적(Optional)으로 추가했다. 관광공사 원본 필드를 무분별하게 복사하지
-않기 위해 실제로 C(일정 생성)/D(화면)가 쓰는 필드만 남겼다.
-"""
+"""A/B/C/D 공통 API 계약 (변경 시 팀 공유 필수)"""
 
 from __future__ import annotations
 
@@ -23,27 +14,23 @@ class Place(BaseModel):
     dist: float
     image: str | None = None
 
-    # --- B_openapi.md 7절: 필요한 데이터만 선택적으로 추가 ---
+    # --- 선택 보완 필드 ---
     content_type_id: str | None = None
     category: str | None = None
     use_time: str | None = None  # 운영시간
     rest_date: str | None = None  # 휴무일
     expected_stay_minutes: int | None = None  # 예상 체류시간(분)
-    overview: str | None = None  # 관광공사 소개문 (detailCommon2). LLM 근거 자료로도 쓴다.
+    overview: str | None = None  # 관광공사 소개문 (LLM 근거 자료로도 사용)
 
 
 class PlaceDetailsRequest(BaseModel):
-    """최종 일정에 뽑힌 장소들의 상세정보 일괄 조회."""
+    """최종 일정 장소들의 상세정보 일괄 조회 요청"""
 
     content_ids: list[str]
 
 
 class Region(BaseModel):
-    """화면의 "어디를 둘러볼까요?" 지역 선택지.
-
-    화면이 좌표를 하드코딩하지 않도록 B가 대표 좌표까지 함께 내려준다
-    (D_frontend.md 11절: 화면은 관광 데이터를 직접 알고 있지 않는다).
-    """
+    """화면 지역 선택지 (대표 좌표 포함)"""
 
     code: str
     name: str
@@ -53,16 +40,11 @@ class Region(BaseModel):
 
 class DayRate(BaseModel):
     date: str  # "YYYYMMDD"
-    rate: float  # 예측 집중률(%). "현재 혼잡도"가 아니다.
+    rate: float  # 예측 집중률(%), 현재 혼잡도 아님
 
 
 class CongestionTarget(BaseModel):
-    """집중률 조회 대상.
-
-    집중률 API는 관광지 "이름"으로 조회한다. 호출측이 이미 이름을 알고 있으면
-    (위치기반 검색 결과에 들어 있다) 함께 넘겨서 B의 상세조회를 생략시킨다 -
-    관광지 1곳당 API 호출이 2회에서 1회로 줄어든다.
-    """
+    """집중률 조회 대상, 이름을 넘기면 B의 상세조회 생략"""
 
     content_id: str
     name: str | None = None
@@ -72,7 +54,7 @@ class Congestion(BaseModel):
     content_id: str
     name: str
     daily: list[DayRate]
-    has_data: bool  # False = 정상 응답이지만 데이터 없음. API 실패와 다르다.
+    has_data: bool  # False = 정상 응답이지만 데이터 없음 (API 실패와 구분)
 
 
 class PlanItem(BaseModel):
@@ -80,15 +62,13 @@ class PlanItem(BaseModel):
     name: str
     order: int
     visit_time: str  # "HH:MM"
-    note: str | None = None  # 사용자에게 보여줄 설명. LLM이 덮어쓸 수 있다.
+    note: str | None = None  # 사용자용 설명 (LLM이 덮어쓸 수 있음)
 
-    # 집중률은 note와 분리해서 둔다. note는 LLM 설명으로 덮이기 때문에,
-    # 여기에 같이 담아두면 재추천 판단 근거가 사라진다.
+    # 재추천 판단 근거 유지를 위해 집중률은 note와 분리
     congestion_label: str | None = None
     high_congestion: bool = False
 
-    # 최종 일정에 뽑힌 장소만 상세정보(소개문/운영시간/휴무일)를 조회해 붙인다.
-    # 후보 전체를 상세조회하면 관광지당 API 호출 2회가 후보 수만큼 늘어난다.
+    # 최종 일정 장소만 상세정보 첨부
     detail: Place | None = None
 
 
@@ -119,9 +99,7 @@ class SavedPlan(BaseModel):
 class LocationReq(BaseModel):
     map_x: float
     map_y: float
-    # 검색 반경(m). 기본값을 계약에서 한 번만 정해야 제주 추천 탭과 코스 생성이
-    # 같은 범위의 관광지를 본다 - 호출측은 반경을 보내지 않는다.
-    # 1km로는 지역당 후보가 0~3곳뿐이라 일정이 항상 같게 나왔고, 5km면 11~20곳.
+    # 검색 반경(m), 호출측은 보내지 않고 이 기본값 공유
     radius: int = 5000
 
 
@@ -152,8 +130,7 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
-# 공통 에러 코드. 사용자에게 내부 예외를 그대로 노출하지 않기 위해
-# A/B/C/D가 동일한 코드 집합을 사용한다 (A_backend_auth.md 7절).
+# 공통 에러 코드
 class ErrorCode:
     NOT_FOUND = "NOT_FOUND"
     UPSTREAM_TIMEOUT = "UPSTREAM_TIMEOUT"

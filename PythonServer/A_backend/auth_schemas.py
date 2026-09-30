@@ -1,5 +1,4 @@
-"""회원/인증 전용 요청·응답 모델. 관광 데이터와 무관하므로 팀 공통
-shared/schemas.py 에는 넣지 않고 A 내부에만 둔다."""
+"""회원/인증 전용 요청·응답 모델"""
 
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ class RegisterRequest(BaseModel):
     def username_not_blank(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("username은 비어 있을 수 없습니다.")
-        # user.username 컬럼이 VARCHAR(100)이다. 넘기면 DB 오류(500)가 되므로 먼저 막는다.
+        # username 컬럼 VARCHAR(100) 초과 방지
         if len(v.strip()) > 100:
             raise ValueError("username은 100자 이하여야 합니다.")
         return v.strip()

@@ -1,8 +1,4 @@
-"""일정 생성/재추천이 B를 어떻게 부르는지 검증한다.
-
-핵심: 상세정보(관광지당 관광공사 API 2회)는 후보 전체가 아니라 최종 일정에
-뽑힌 장소만 조회해야 한다.
-"""
+"""일정 생성/재추천의 B 호출 방식 검증 (상세정보는 뽑힌 장소만)"""
 
 import asyncio
 
@@ -61,14 +57,14 @@ def test_generate_plan_fetches_details_only_for_selected_places(monkeypatch):
     plan = asyncio.run(planner_service.generate_plan(_request(place_count=3)))
 
     assert len(plan.items) == 3
-    # 후보 20곳이 아니라 뽑힌 3곳만, 한 번에 조회한다.
+    # 후보 20곳이 아니라 뽑힌 3곳만 한 번에 조회
     assert len(calls["details"]) == 1
     assert sorted(calls["details"][0]) == sorted(i.content_id for i in plan.items)
     assert all(i.detail is not None and i.detail.use_time == "상시 개방" for i in plan.items)
 
 
 def test_generate_plan_does_not_pin_search_radius(monkeypatch):
-    """반경은 공통 계약(LocationReq)의 기본값 한 곳에서 정한다 - C가 따로 값을 박지 않는다."""
+    """반경은 공통 계약 기본값 사용"""
     calls = _install_fakes(monkeypatch, [_place(i) for i in range(5)])
     asyncio.run(planner_service.generate_plan(_request(place_count=3)))
     assert calls["nearby"] == [None]
@@ -106,9 +102,9 @@ def test_replan_reuses_target_detail_and_fetches_only_replacement(monkeypatch):
     resp = asyncio.run(planner_service.replan(ReplanRequest(plan=plan, target_content_id="1", reason="예측 집중률 높음")))
 
     assert resp.replaced_content_id == "3"
-    # 대상 좌표는 기존 상세정보를 재사용하고, 새로 들어온 장소만 상세조회한다.
+    # 대상 좌표는 기존 상세정보 재사용, 새 장소만 상세조회
     assert calls["details"] == [["3"]]
-    # 대체 후보 검색은 교체 허용 거리까지만 본다.
+    # 대체 후보 검색은 교체 허용 거리까지만
     assert calls["nearby"] == [int(planner_service.config.MAX_REPLAN_DISTANCE_DELTA_M)]
 
     by_id = {i.content_id: i for i in resp.plan.items}
@@ -129,7 +125,7 @@ def test_replan_fetches_target_detail_when_missing(monkeypatch):
 
 
 def test_b_client_omits_radius_so_contract_default_applies(monkeypatch):
-    """반경을 안 주면 요청 본문에 계약 기본값(5000)이 실린다 - None을 보내면 422."""
+    """반경 미지정 시 요청 본문에 계약 기본값(5000) 포함 (None이면 422)"""
     captured = {}
 
     class _Resp:

@@ -59,7 +59,7 @@ def test_llm_invalid_content_id_is_dropped_not_trusted():
 
 
 def test_note_with_numbers_not_in_source_is_dropped():
-    """자료에 없는 운영시간/요금 같은 숫자는 가장 흔한 환각 형태다."""
+    """자료에 없는 숫자(운영시간/요금 등) 차단"""
     client = _FixedClient(LLMPlanText(
         title="제주 산책", summary="여유로운 하루입니다.",
         item_notes={"1": "입장료 3000원으로 저렴해요.", "2": "도심 속 공원이에요."},
@@ -87,14 +87,14 @@ def test_title_with_unsupported_number_falls_back_entirely():
 
 
 def test_no_places_skips_llm_call():
-    """쓸 장소가 없으면 하루 요청 한도를 쓰지 않는다."""
+    """쓸 장소가 없으면 요청 한도를 쓰지 않음"""
     client = _FixedClient(LLMPlanText(title="t", summary="s"))
     assert asyncio.run(safe_generate_plan_text(client, "20260828", None, [], set())) is None
     assert client.calls == 0
 
 
 def test_replan_reason_uses_actual_congestion_label():
-    """'보통'인 곳을 바꿨는데 '집중률이 높아'라고 쓰면 사실과 다르다."""
+    """교체 대상의 실제 라벨과 다른 사유 문구 금지"""
     assert "높아" in replan_reason_text("A", "B", "예측 집중률 높음")
     normal = replan_reason_text("A", "B", "예측 집중률 보통")
     assert "높아" not in normal and "A" in normal and "B" in normal

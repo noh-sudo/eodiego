@@ -57,7 +57,7 @@ def test_schedule_visits_stops_at_end_time():
     places = [make_place(str(i), f"P{i}", i * 100, stay=90) for i in range(5)]
     ordered = order_by_route(score_candidates(attach_congestion(places, {}, "20260828")))
     items = schedule_visits(ordered, "10:00", "12:00")
-    # 90분씩이므로 10:00, 11:30 두 개만 담기고 그 다음은 end_time을 넘겨 제외된다.
+    # 90분씩이라 10:00, 11:30 두 개만 담기고 이후는 end_time 초과로 제외
     assert len(items) == 2
     assert items[0].visit_time == "10:00"
     assert items[1].visit_time == "11:30"

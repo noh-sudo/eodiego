@@ -1,8 +1,4 @@
-"""A 서비스 진입점 (A_backend_auth.md 5, 9, 10절).
-
-A의 API 책임: 회원가입/로그인/로그아웃/현재 사용자 확인/일정 저장·조회·삭제/
-마이페이지. 관광공사 API는 B를 통해서만 접근한다.
-"""
+"""A 서비스 진입점: 회원 인증과 일정 저장·조회·삭제"""
 
 from __future__ import annotations
 
@@ -23,8 +19,7 @@ from .errors import AppError, DuplicateUserError, InvalidCredentialsError
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    # 테이블은 db/schema.sql 로 관리자가 만든다 - 앱은 DDL 권한이 없다.
-    # 기동 시 접속과 테이블 존재만 확인해서, 설정이 틀렸으면 바로 실패한다.
+    # 앱은 DDL 권한이 없으므로 기동 시 접속과 테이블 존재만 확인
     db.ping()
     yield
 
@@ -33,7 +28,7 @@ app = FastAPI(title="A - 백엔드/인증/저장 서비스", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.ALLOWED_ORIGINS,  # 와일드카드 금지: 쿠키 인증과 함께 쓰려면 origin을 명시해야 한다.
+    allow_origins=config.ALLOWED_ORIGINS,  # 쿠키 인증과 함께 쓰므로 origin 명시
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,16 +42,14 @@ async def app_error_handler(request: Request, exc: AppError):
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
-    # 사용자에게 내부 예외를 그대로 노출하지 않는다 (7절).
+    # 내부 예외 노출 방지
     return JSONResponse(
         status_code=422,
         content=ErrorResponse(error={"code": "VALIDATION_ERROR", "message": "입력값이 올바르지 않습니다."}).model_dump(),
     )
 
 
-# ---------------------------------------------------------------------------
-# 인증
-# ---------------------------------------------------------------------------
+# --- 인증 ---
 
 
 @app.post("/auth/register", response_model=UserPublic, status_code=201)
@@ -98,9 +91,7 @@ def me(user_id: int | None = Depends(auth.get_current_user_optional)):
     return UserPublic(user_id=row["user_id"], username=row["username"])
 
 
-# ---------------------------------------------------------------------------
-# 일정 저장/조회/삭제 (로그인 필수 - 비회원은 D에서 브라우저 상태로만 유지)
-# ---------------------------------------------------------------------------
+# --- 일정 저장/조회/삭제 (로그인 필수) ---
 
 
 @app.post("/plans", response_model=SavedPlan, status_code=201)

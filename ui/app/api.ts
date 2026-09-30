@@ -1,9 +1,4 @@
-/** D(BFF, 기본 :8003)의 /ui/* JSON API 클라이언트.
- *
- * 화면은 A/B/C를 직접 부르지 않는다 - 항상 D만 거친다(D_frontend.md 11, 15절).
- * D는 실패해도 HTTP 200을 주고 envelope의 status로 결과를 알려주므로,
- * 호출측은 res.ok가 아니라 status로 분기해야 한다.
- */
+/** D(BFF)의 /ui/* JSON API 클라이언트 (결과는 HTTP 코드가 아닌 envelope status로 분기) */
 
 export type ErrorData = { message: string; retryable: boolean; code?: string | null };
 
@@ -14,7 +9,7 @@ export type Envelope<T> =
 
 export type User = { user_id: number; username: string };
 
-/** 지역 선택지. 좌표는 화면이 아니라 B가 관리한다 (B_openapi/region.py). */
+/** 지역 선택지 (좌표는 B가 관리) */
 export type Region = { code: string; name: string; map_x: number; map_y: number };
 
 export type Place = {
@@ -40,11 +35,11 @@ export type PlanItem = {
   visit_time: string;
   name: string;
   note: string;
-  /** note와 별개로 내려오는 집중률 라벨. note는 LLM 설명으로 덮인다. */
+  /** note와 별개인 집중률 라벨 (note는 LLM 설명으로 덮임) */
   congestion_label: string;
   high_congestion: boolean;
   replan_prompt?: { message: string; target_name: string };
-  /** 최종 일정에 뽑힌 장소만 조회되는 상세정보 (소개문/운영시간/휴무일). */
+  /** 최종 일정 장소만 조회되는 상세정보 */
   detail: Place | null;
 };
 
@@ -55,8 +50,7 @@ export type PlanView = { title: string; summary: string; travel_date: string; it
 export type SavedPlanItem = { content_id: string; name: string; order: number; visit_time: string; note: string | null };
 export type SavedPlan = { plan_id: number; title: string; travel_date: string; items: SavedPlanItem[] };
 
-/** 저장 일정 상세. current는 B에서 실시간 재조회한 현재 관광지 정보이며,
- *  B 호출이 실패하면 null이다 (저장된 기본 정보만으로도 화면은 그린다). */
+/** 저장 일정 상세 (current는 B 실시간 재조회 결과, 실패 시 null) */
 export type PlanDetailItem = {
   content_id: string;
   name: string;
@@ -67,8 +61,7 @@ export type PlanDetailItem = {
 };
 export type PlanDetail = { plan_id: number; title: string; travel_date: string; items: PlanDetailItem[] };
 
-// 기본값 ""(같은 origin) - vite dev 서버와 worker가 /ui 를 D로 프록시한다.
-// 다른 호스트의 D를 쓰려면 NEXT_PUBLIC_BFF_BASE_URL 을 설정한다.
+// 기본값 ""(같은 origin), 다른 호스트의 D는 NEXT_PUBLIC_BFF_BASE_URL로 지정
 const BASE: string =
   (typeof process !== "undefined" && process.env && process.env.NEXT_PUBLIC_BFF_BASE_URL) || "";
 
@@ -87,7 +80,7 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<En
     return { status: "error", data: NETWORK_ERROR };
   }
 
-  // D가 잡지 못한 예외(500)나 FastAPI 검증 오류(422)는 envelope이 아니다.
+  // D가 못 잡은 예외(500)나 검증 오류(422)는 envelope이 아님
   if (!res.ok) {
     return {
       status: "error",
@@ -101,19 +94,19 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<En
   }
 }
 
-/** status가 error/empty면 화면에 띄울 문구를, success면 null을 돌려준다. */
+/** error/empty면 화면 문구, success면 null */
 export function errorMessage(env: Envelope<unknown>): string | null {
   if (env.status === "error") return env.data.message;
   if (env.status === "empty") return env.message;
   return null;
 }
 
-/** 실패 원인이 "로그인이 필요함"인지. 이때는 문구 대신 로그인 창을 띄운다. */
+/** 로그인이 필요한 실패인지 여부 */
 export function needsLogin(env: Envelope<unknown>): boolean {
   return env.status === "error" && (env.data.code === "AUTH_REQUIRED" || env.data.code === "SESSION_EXPIRED");
 }
 
-// --- 인증 (A) ---------------------------------------------------------------
+// --- 인증 (A) ---
 export const register = (username: string, password: string) =>
   call<User>("/ui/auth/register", "POST", { username, password });
 export const login = (username: string, password: string) =>
@@ -121,19 +114,19 @@ export const login = (username: string, password: string) =>
 export const logout = () => call<null>("/ui/auth/logout", "POST", {});
 export const me = () => call<User | null>("/ui/auth/me");
 
-// --- 지역 / 관광지 / 집중률 (B) ---------------------------------------------
+// --- 지역 / 관광지 / 집중률 (B) ---
 export const listRegions = () => call<Region[]>("/ui/regions");
-/** 반경은 보내지 않는다 - B의 설정값을 코스 생성과 똑같이 쓴다. */
+/** 반경은 B 설정값 사용 */
 export const nearby = (map_x: number, map_y: number) =>
   call<Place[]>("/ui/places/nearby", "POST", { map_x, map_y });
-/** 이름을 함께 넘겨야 B가 관광지당 상세조회를 한 번 더 하지 않는다. */
+/** 이름을 함께 넘겨 B의 상세 재조회 생략 */
 export const congestion = (places: { content_id: string; name: string }[], travel_date: string) =>
   call<Record<string, CongestionView>>("/ui/places/congestion", "POST", {
     travel_date,
     targets: places.map((p) => ({ content_id: p.content_id, name: p.name })),
   });
 
-// --- 일정 생성 (C) / 저장 (A) ------------------------------------------------
+// --- 일정 생성 (C) / 저장 (A) ---
 export const generatePlan = (req: {
   map_x: number;
   map_y: number;
@@ -144,7 +137,7 @@ export const generatePlan = (req: {
   theme?: string | null;
 }) => call<PlanView>("/ui/plan/generate", "POST", req);
 
-/** 집중률이 높은 한 곳만 다른 관광지로 교체한다. */
+/** 집중률이 높은 한 곳만 다른 관광지로 교체 */
 export const replan = (plan: PlanView, target_content_id: string, reason: string) =>
   call<ReplanResult>("/ui/plan/replan", "POST", {
     plan: {
@@ -159,7 +152,7 @@ export const replan = (plan: PlanView, target_content_id: string, reason: string
         note: i.note,
         congestion_label: i.congestion_label,
         high_congestion: i.high_congestion,
-        // 이미 받아둔 상세정보를 돌려보내야 C가 대상 좌표를 다시 조회하지 않는다.
+        // 받아둔 상세정보를 돌려보내 C의 좌표 재조회 생략
         detail: i.detail,
       })),
     },
@@ -183,14 +176,13 @@ export const savePlan = (plan: PlanView) =>
 export const listPlans = () => call<SavedPlan[]>("/ui/plans");
 export const getPlanDetail = (planId: number) => call<PlanDetail>(`/ui/plans/${planId}`);
 
-// --- 화면 조건 -> API 파라미터 변환 ------------------------------------------
+// --- 화면 조건 -> API 파라미터 변환 ---
 
-/** 공통 계약의 "YYYYMMDD" -> 화면 표기용 "2026.09.12". */
+/** "YYYYMMDD" -> "2026.09.12" */
 export const formatYmd = (ymd: string) =>
   /^\d{8}$/.test(ymd) ? `${ymd.slice(0, 4)}.${ymd.slice(4, 6)}.${ymd.slice(6)}` : ymd;
 
-/** 사용자 기기 기준 오늘(+offsetDays)을 "YYYY-MM-DD"로.
- *  toISOString()은 UTC라서 한국 시간 오전 9시 전에는 어제 날짜가 나온다. */
+/** 기기 기준 오늘(+offsetDays)을 "YYYY-MM-DD"로 (toISOString은 UTC라 사용 안 함) */
 export function localIsoDate(offsetDays = 0): string {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
@@ -199,10 +191,10 @@ export function localIsoDate(offsetDays = 0): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
-/** <input type="date">의 "YYYY-MM-DD" -> 공통 계약의 "YYYYMMDD". */
+/** "YYYY-MM-DD" -> "YYYYMMDD" */
 export const toYmd = (isoDate: string) => isoDate.replaceAll("-", "");
 
-/** 여행 일수 -> 방문지 수. C는 하루치 일정만 만들므로 상한을 둔다. */
+/** 여행 일수 -> 방문지 수 (하루치 일정이라 상한 적용) */
 export function placeCountFor(startIso: string, endIso: string): number {
   const start = Date.parse(startIso);
   const end = Date.parse(endIso);

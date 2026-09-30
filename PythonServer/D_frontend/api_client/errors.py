@@ -1,10 +1,10 @@
-"""api_client 공통 예외. main.py가 이 예외들을 view_logic의 사용자 메시지로 변환한다."""
+"""api_client 공통 예외 (main.py에서 사용자 메시지로 변환)"""
 
 from __future__ import annotations
 
 
 class UpstreamUnavailableError(Exception):
-    """A/B/C 서버가 timeout 되었거나 연결에 실패한 경우."""
+    """A/B/C timeout 또는 연결 실패"""
 
     def __init__(self, service: str, message: str = ""):
         super().__init__(message or f"{service} 서비스 호출 실패")
@@ -12,7 +12,7 @@ class UpstreamUnavailableError(Exception):
 
 
 class UpstreamRejectedError(Exception):
-    """A/B/C가 4xx/5xx 오류 응답(공통 ErrorResponse)을 반환한 경우."""
+    """A/B/C의 4xx/5xx 오류 응답"""
 
     def __init__(self, service: str, status_code: int, code: str, message: str):
         super().__init__(message)

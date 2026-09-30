@@ -1,4 +1,4 @@
-"""B_openapi.md 11절 회귀 테스트: "보덕사(제주)" -> "보덕사" 매칭 고정."""
+"""보덕사(제주) -> 보덕사 매칭 회귀 테스트"""
 
 from B_openapi.matching import build_signgu_cd, extract_base_name, match_congestion_candidate
 
@@ -26,7 +26,7 @@ def test_match_multiple_prefers_exact_name():
 
 
 def test_match_ambiguous_returns_none_same_name_different_region():
-    # 동일 이름의 타지역 관광지가 섞여 들어온 경우 (필터가 완벽하지 않았던 상황)
+    # 같은 이름의 다른 지역 관광지가 섞인 경우
     candidates = [{"name": "보덕사"}, {"name": "보덕사"}]
     assert match_congestion_candidate(candidates, "보덕사") is None
 

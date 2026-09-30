@@ -1,16 +1,4 @@
-"""LLM 하루 요청 수 제한 + 토큰 사용량 기록 - MySQL.
-
-OpenAI 계정 한도가 하루 50회(RPD)라서, 한도를 넘겨 429를 받기 전에 우리가
-먼저 멈추고 기본 문구로 전환한다. 서버를 재시작해도 오늘 쓴 횟수가 남도록
-DB에 둔다.
-
-앱 계정은 SELECT, INSERT 권한만 있어서 숫자를 +1 하지 않는다. 요청 1건마다
-llm_request 에 1행, 응답 토큰은 llm_token_usage 에 1행을 추가하고 COUNT/SUM
-으로 센다. 테이블 정의는 db/schema.sql.
-
-날짜는 UTC 기준으로 센다. 제공사의 하루 리셋 시점이 확실하지 않아서, 상한을
-실제 한도보다 낮게(45/50) 잡아 여유를 둔다.
-"""
+"""LLM 하루 요청 수 제한과 토큰 사용량 기록 (MySQL, UTC 기준)"""
 
 from __future__ import annotations
 
@@ -24,8 +12,7 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
-# 같은 프로세스 안에서 동시에 예약할 때의 경합을 줄인다. (서버 여러 대의 경합은
-# INSERT ... SELECT 한 문장으로 좁히고, 남는 틈은 상한 45/50의 여유분으로 흡수한다.)
+# 같은 프로세스 안의 동시 예약 경합 완화
 _lock = threading.Lock()
 
 
@@ -34,11 +21,7 @@ def _today() -> date:
 
 
 def try_reserve() -> bool:
-    """요청 1회분을 예약한다. 오늘 상한에 도달했으면 False (호출하지 말 것).
-
-    실패한 요청도 제공사 한도를 깎으므로, 호출 "직전"에 센다.
-    DB에 기록할 수 없으면 한도를 확인할 수 없으므로 부르지 않는다 (False).
-    """
+    """요청 1회 예약, 상한 도달 또는 기록 실패 시 False"""
 
     limit = config.LLM_DAILY_REQUEST_LIMIT
     today = _today()
@@ -50,7 +33,7 @@ def try_reserve() -> bool:
                     (today, config.LLM_MODEL),
                 )
                 return True
-            # 오늘 건수가 상한 미만일 때만 1행을 추가한다 (한 문장으로 확인+추가).
+            # 오늘 건수가 상한 미만일 때만 1행 추가 (확인+추가를 한 문장으로)
             cur.execute(
                 "INSERT INTO `llm_request` (`request_day`, `model`) "
                 "SELECT %s, %s FROM DUAL "

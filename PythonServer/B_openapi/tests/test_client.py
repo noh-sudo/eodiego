@@ -1,17 +1,4 @@
-"""실제 tatsCnctrRatedList 응답 예시(사용자 제공)를 기준으로 한 회귀 테스트.
-
-요청 예:
-  GET https://apis.data.go.kr/B551011/TatsCnctrRateService/tatsCnctrRatedList
-      ?serviceKey=...&pageNo=1&numOfRows=10&MobileOS=ETC&MobileApp=AppTest
-      &areaCd=50&signguCd=50110&tAtsNm=신산공원&_type=json
-
-응답 예 (10개 날짜, 신산공원 하나):
-  {"response": {"header": {"resultCode": "0000", "resultMsg": "OK"},
-    "body": {"items": {"item": [
-      {"baseYmd": "20260902", ..., "tAtsNm": "신산공원", "cnctrRate": "42.33"},
-      ...
-    ]}, "numOfRows": 10, "pageNo": 1, "totalCount": 30}}}
-"""
+"""실제 tatsCnctrRatedList 응답 형태 기준 회귀 테스트"""
 
 import asyncio
 
@@ -107,12 +94,12 @@ def test_get_congestion_by_name_groups_daily_rows_from_real_shape(monkeypatch):
     assert congestion.daily[3].rate == 86.63
 
 
-# --- 실제 API에서 관측한 응답 형태 회귀 테스트 -------------------------------
+# --- 실제 API 응답 형태 회귀 테스트 ---
 
 EMPTY_PAYLOAD = {
     "response": {
         "header": {"resultCode": "0000", "resultMsg": "OK"},
-        # 결과 0건이면 items가 dict가 아니라 빈 문자열로 온다.
+        # 0건이면 items가 빈 문자열로 옴
         "body": {"items": "", "numOfRows": 0, "pageNo": 1, "totalCount": 0},
     }
 }
@@ -126,7 +113,7 @@ GATEWAY_ERROR_PAYLOAD = {
 SINGLE_ITEM_PAYLOAD = {
     "response": {
         "header": {"resultCode": "0000", "resultMsg": "OK"},
-        # 결과가 1건이면 item이 list가 아니라 dict로 온다.
+        # 1건이면 item이 dict로 옴
         "body": {"items": {"item": SAMPLE_ITEMS[0]}, "numOfRows": 1, "pageNo": 1, "totalCount": 1},
     }
 }
@@ -150,7 +137,7 @@ def test_empty_items_string_on_detail_raises_payload_error(monkeypatch):
 
 
 def test_top_level_result_code_error_raises(monkeypatch):
-    """필수 파라미터 누락은 최상위 resultCode로 온다 - 데이터 없음으로 삼키면 안 된다."""
+    """필수 파라미터 누락(최상위 resultCode)을 데이터 없음으로 처리하지 않음"""
     monkeypatch.setattr(client, "_shared_client", None)
     monkeypatch.setattr(client.httpx, "AsyncClient", lambda **kw: _FakeAsyncClient({}, GATEWAY_ERROR_PAYLOAD))
 

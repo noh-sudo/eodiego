@@ -1,5 +1,4 @@
-"""A의 인증 API 프록시. 세션 쿠키 값을 그대로 A에 전달하고, A가 내려주는
-쿠키를 이 서버(main.py)가 다시 브라우저로 그대로 내려준다(BFF 패턴)."""
+"""A 인증 API 프록시 (세션 쿠키를 그대로 전달)"""
 
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ async def register(username: str, password: str) -> dict:
 
 
 async def login(username: str, password: str) -> tuple[dict, str | None]:
-    """반환: (user_public_dict, A가 내려준 세션 토큰 또는 None)."""
+    """반환: (사용자 정보, A가 내려준 세션 토큰 또는 None)"""
 
     resp = await _http.request(
         "A", config.A_BASE_URL, "POST", "/auth/login", json={"username": username, "password": password}

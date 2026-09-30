@@ -1,8 +1,4 @@
-"""Check systemd-injected configuration without printing secret values.
-
-Run from PythonServer; --database only executes SELECT queries.
-This script deliberately does not load, source or modify a .env file.
-"""
+"""systemd가 주입한 설정 검사 (비밀 값 미출력, --database는 SELECT만 실행)"""
 from __future__ import annotations
 
 import argparse
@@ -54,7 +50,7 @@ def validate(env: dict[str, str]) -> list[str]:
     }.items():
         if env.get(key) != expected:
             errors.append(f"{key}: must match the loopback address in the installed units")
-    # All numeric settings present in the deployment template must be explicit.
+    # 배포 템플릿의 숫자 설정은 모두 명시 필요
     integer_keys = {
         "DB_PORT": (1, 65535), "SESSION_TTL_SECONDS": (1, None),
         "KTO_NUM_OF_ROWS": (1, None), "MAX_DETAIL_BATCH": (1, None),
@@ -123,7 +119,7 @@ def main() -> int:
         if args.database:
             check_database()
     except Exception as exc:
-        # Exception messages from drivers may contain hostnames or credentials.
+        # 드라이버 예외 메시지에 호스트/계정이 섞일 수 있어 미출력
         print(f"FAIL: {'database/configuration' if args.database else 'configuration'} check ({type(exc).__name__}); check settings, dependencies and connectivity", file=sys.stderr)
         return 1
     print("PASS: production configuration (secret values not displayed)")

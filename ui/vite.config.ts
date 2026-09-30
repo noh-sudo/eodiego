@@ -4,8 +4,7 @@ import { defineConfig } from "vite";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
-  // worker가 /ui/* 를 D(BFF)로 넘길 때 쓰는 주소. 배포 환경에서는 호스팅
-  // 대시보드의 환경변수로 덮어쓴다.
+  // worker가 /ui/*를 넘길 D(BFF) 주소 (배포 시 호스팅 환경변수로 덮어씀)
   vars: {
     BFF_BASE_URL: process.env.BFF_BASE_URL ?? "",
     BFF_GATEWAY_TOKEN: process.env.BFF_GATEWAY_TOKEN ?? "",
@@ -13,20 +12,18 @@ const localBindingConfig = {
 };
 
 export default defineConfig(async () => {
-  // Keep Wrangler and Miniflare state project-local. These are non-secret tool
-  // settings; application environment belongs in ignored `.env*` files.
+  // Wrangler/Miniflare 상태를 프로젝트 안에 보관
   process.env.WRANGLER_WRITE_LOGS ??= "false";
   process.env.WRANGLER_LOG_PATH ??= ".wrangler/logs";
   process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
 
-  // Wrangler snapshots its log path while the Cloudflare plugin is imported.
+  // Cloudflare 플러그인 import 시점에 로그 경로가 고정되므로 먼저 설정
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
     server: {
       host: "0.0.0.0",
-      // 화면은 /ui/* 를 같은 origin으로 호출하고, dev 서버가 D(BFF)로 넘긴다.
-      // 이렇게 해야 세션 쿠키가 cross-origin CORS 제약 없이 그대로 오간다.
+      // /ui/*를 D로 프록시해 세션 쿠키를 같은 origin으로 유지
       proxy: {
         "/ui": {
           target: process.env.BFF_BASE_URL ?? "http://127.0.0.1:8003",

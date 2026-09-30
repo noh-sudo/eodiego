@@ -1,8 +1,4 @@
-"""A 공통 예외 -> ErrorResponse 매핑 (A_backend_auth.md 7절).
-
-사용자에게 내부 예외를 그대로 노출하지 않기 위해, 서비스 계층은 이
-예외들만 던지고 main.py에서 shared.schemas.ErrorResponse로 변환한다.
-"""
+"""A 공통 예외 (main.py에서 ErrorResponse로 변환)"""
 
 from __future__ import annotations
 

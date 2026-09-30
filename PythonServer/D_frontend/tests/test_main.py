@@ -143,10 +143,10 @@ def test_regions_empty_returns_empty_envelope():
         m.places_client.regions = orig
 
 
-# --- 500 대신 봉투로 응답하는지 -----------------------------------------------
+# --- 500 대신 envelope 응답 ---
 
 def test_me_returns_envelope_when_a_is_down():
-    """화면 최초 진입 API. 여기서 500이 나면 첫 화면부터 계약이 깨진다."""
+    """화면 최초 진입 API는 오류도 envelope로 반환"""
     async def failing_me(token):
         raise UpstreamUnavailableError("A", "boom")
 
@@ -202,7 +202,7 @@ def test_save_plan_without_login_tells_screen_to_show_login():
 
 
 def test_congestion_forwards_names_to_b():
-    """이름을 그대로 B에 넘겨야 상세 재조회가 생략된다."""
+    """이름을 그대로 넘겨 B의 상세 재조회 생략"""
     captured = {}
 
     async def fake_congestion(targets, area_cd, l_dong_signgu_cd):
@@ -225,10 +225,10 @@ def test_congestion_forwards_names_to_b():
         m.places_client.congestion = orig
 
 
-# --- 배포 대비: 쿠키 속성 / 게이트웨이 -----------------------------------------
+# --- 배포 대비: 쿠키 속성 / 게이트웨이 ---
 
 def test_login_cookie_has_max_age(monkeypatch):
-    """max_age가 없으면 세션 쿠키가 되어 브라우저를 닫을 때마다 로그아웃된다."""
+    """max_age가 없으면 브라우저를 닫을 때마다 로그아웃됨"""
     async def fake_login(username, password):
         return {"user_id": 1, "username": username}, "token-abc"
 
@@ -255,7 +255,7 @@ def test_login_cookie_is_secure_when_configured(monkeypatch):
 
 
 def test_gateway_token_blocks_direct_calls(monkeypatch):
-    """배포하면 D 주소가 공개된다 - 화면을 거치지 않은 호출은 막아야 한다."""
+    """화면을 거치지 않은 호출 차단"""
     import D_frontend.main as m
 
     monkeypatch.setattr(m.config, "GATEWAY_TOKEN", "s3cret")
@@ -282,7 +282,7 @@ def test_gateway_token_allows_proxied_calls(monkeypatch):
 
 
 def test_gateway_check_is_off_when_token_unset(monkeypatch):
-    """로컬 개발에서는 토큰 없이 그대로 동작해야 한다."""
+    """로컬 개발에서는 토큰 없이 동작"""
     async def fake_me(token):
         return None
 
@@ -294,7 +294,7 @@ def test_gateway_check_is_off_when_token_unset(monkeypatch):
 
 
 def test_places_client_does_not_send_null_radius(monkeypatch):
-    """반경을 null로 보내면 B의 계약 검증(422)에 걸린다 - 없으면 아예 빼야 한다."""
+    """반경이 없으면 null 대신 필드 자체를 생략 (null이면 422)"""
     from D_frontend.api_client import _http, places
 
     captured = {}

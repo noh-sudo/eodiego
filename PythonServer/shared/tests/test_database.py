@@ -1,8 +1,4 @@
-"""DB 접속 설정과 앱 계정 권한 검증.
-
-앱 계정(eodiegoServer)은 SELECT, INSERT만 할 수 있어야 한다. DDL, UPDATE,
-DELETE가 막혀 있는지 실제 MySQL에 시도해서 확인한다.
-"""
+"""DB 접속 설정과 앱 계정 권한(SELECT/INSERT 전용) 검증"""
 
 import pymysql
 import pytest

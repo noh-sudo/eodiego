@@ -1,12 +1,4 @@
-"""B의 공개 service 계층.
-
-A/C는 관광공사 원본 응답을 직접 파싱하지 않고 이 모듈(또는 main.py의 HTTP
-endpoint)만 사용한다 (A_backend_auth.md 5절, B_openapi.md 0절).
-
-USE_MOCK 환경변수로 mock/실제 API를 전환한다. 실제 API로 바꿔도 함수
-시그니처와 반환 타입(shared.schemas)은 그대로이므로 호출측 코드는 바뀌지
-않는다 (B_openapi.md 12절 완료 조건).
-"""
+"""B service 계층 (USE_MOCK으로 mock/실제 API 전환, 반환 타입은 동일)"""
 
 from __future__ import annotations
 
@@ -46,8 +38,7 @@ def _normalize_place(raw: dict) -> Place | None:
 
 
 async def get_places(req: LocationReq) -> list[Place]:
-    """위치기반 주변 관광지 조회. 좌표는 이 함수 안에서만 사용하고 로그로
-    남기지 않는다 (B_openapi.md 9절)."""
+    """위치기반 주변 관광지 조회 (좌표는 로그에 남기지 않음)"""
 
     if config.USE_MOCK:
         return mock_data.mock_places()
@@ -58,10 +49,7 @@ async def get_places(req: LocationReq) -> list[Place]:
 
 
 async def get_place_detail(content_id: str) -> Place | None:
-    """content_id -> 관광공사 공통정보/소개정보 재조회 (B_openapi.md 8절).
-
-    DB에서 상세정보를 가져오지 않고 항상 실시간으로 조회한다.
-    """
+    """공통정보/소개정보 실시간 재조회"""
 
     if config.USE_MOCK:
         return mock_data.mock_place_detail(content_id)
@@ -74,7 +62,7 @@ async def get_place_detail(content_id: str) -> Place | None:
     content_type_id = raw.get("contenttypeid")
     intro: dict = {}
     if content_type_id:
-        # 소개정보가 실패해도 공통정보만으로 상세는 돌려준다.
+        # 소개정보가 실패해도 공통정보만으로 반환
         try:
             intro = await fetch_place_intro(content_id, str(content_type_id))
         except (UpstreamTimeoutError, UpstreamAPIError, InvalidUpstreamPayloadError):
@@ -96,7 +84,7 @@ async def get_place_detail(content_id: str) -> Place | None:
 
 
 def _clean_text(value) -> str | None:
-    """관광공사 텍스트에 섞여 오는 <br> 같은 태그와 HTML 엔티티를 정리한다."""
+    """<br> 등 태그와 HTML 엔티티 정리"""
 
     if not value:
         return None
@@ -106,12 +94,7 @@ def _clean_text(value) -> str | None:
 
 
 def _intro_field(intro: dict, prefixes: tuple[str, ...]) -> str | None:
-    """소개정보 필드 이름은 콘텐츠 유형마다 다르다.
-
-    관광지(12)는 usetime/restdate이고, 다른 유형은 usetimeculture,
-    restdatefood 처럼 접미사가 붙는다. 이름을 유형별로 하드코딩하지 않고
-    접두사로 찾는다.
-    """
+    """소개정보 필드를 접두사로 탐색 (유형마다 이름이 다름)"""
 
     for key, value in intro.items():
         if key.lower().startswith(prefixes):
@@ -122,11 +105,7 @@ def _intro_field(intro: dict, prefixes: tuple[str, ...]) -> str | None:
 
 
 async def get_place_details(content_ids: list[str]) -> list[Place]:
-    """최종 일정에 뽑힌 장소들만 상세정보를 병렬로 조회한다.
-
-    관광지 1곳당 API 2회(공통정보+소개정보)가 나가므로 상한을 둔다.
-    조회에 실패한 장소는 결과에서 빠지고, 순서는 요청 순서를 따른다.
-    """
+    """최종 일정 장소들의 상세정보 병렬 조회 (상한 적용, 요청 순서 유지)"""
 
     unique_ids = list(dict.fromkeys(content_ids))[: config.MAX_DETAIL_BATCH]
     results = await asyncio.gather(
@@ -138,16 +117,7 @@ async def get_place_details(content_ids: list[str]) -> list[Place]:
 async def get_congestion_by_name(
     content_id: str, name: str, area_cd: str, l_dong_signgu_cd: str
 ) -> Congestion:
-    """이름으로 예측 집중률 조회 + 매칭 규칙 적용.
-
-    집중률 API는 content_id가 아니라 관광지 이름으로 조회하므로, 이름만
-    있으면 상세조회 없이 바로 부를 수 있다.
-
-    실제 API(tatsCnctrRatedList)는 관광지 1곳당 날짜별로 한 행씩
-    (baseYmd/tAtsNm/cnctrRate) 내려준다. 같은 이름의 행들을 먼저 하나의
-    후보로 묶은 다음에 매칭 규칙(matching.match_congestion_candidate)을
-    적용해야 한다 - 날짜별 행 개수를 후보 개수로 착각하면 안 된다.
-    """
+    """이름으로 집중률 조회 후 날짜별 행을 묶어 매칭 규칙 적용"""
 
     if config.USE_MOCK:
         return mock_data.mock_congestion(content_id)
@@ -177,13 +147,7 @@ async def get_congestion_by_name(
 
 
 async def resolve_target_names(targets: list[CongestionTarget]) -> list[tuple[str, str]]:
-    """이름이 없는 대상만 상세조회로 채운다.
-
-    이름이 함께 오면 상세조회를 통째로 건너뛴다. 못 채운 대상은 집중률을
-    조회할 방법이 없으므로 목록에서 뺀다(호출측은 "데이터 없음"으로 본다).
-
-    순차 루프였던 것을 gather로 바꿨다 - 20곳이면 8초가 넘게 걸리던 구간이다.
-    """
+    """이름 없는 대상만 상세조회로 채우고 실패한 대상은 제외"""
 
     unknown = [t for t in targets if not t.name]
     resolved: dict[str, str] = {}
@@ -206,11 +170,7 @@ async def resolve_target_names(targets: list[CongestionTarget]) -> list[tuple[st
 async def get_congestion_for_targets(
     targets: list[CongestionTarget], area_cd: str, l_dong_signgu_cd: str
 ) -> dict[str, Congestion]:
-    """집중률 배치 조회.
-
-    후보 수 제한을 상세조회 "전에" 적용한다. 예전에는 집중률에만 걸려 있어서
-    50개가 오면 상세조회 50번이 그대로 나갔다 (B_openapi.md 5절 위반).
-    """
+    """집중률 배치 조회 (후보 수 제한은 상세조회 전에 적용)"""
 
     limited = targets[: config.MAX_CANDIDATES_FOR_CONGESTION]
     pairs = await resolve_target_names(limited)

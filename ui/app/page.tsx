@@ -6,7 +6,7 @@ import * as api from "./api";
 type Tab = "planner" | "realtime" | "mypage";
 type Dialog = "login" | "invite" | null;
 
-// 사용자 기기 기준 오늘. toISOString()은 UTC라 한국 오전 9시 전엔 어제가 된다.
+// 기기 기준 오늘 (toISOString은 UTC라 한국 오전 9시 전엔 어제가 됨)
 const todayYmd = () => api.toYmd(api.localIsoDate());
 
 export default function Home() {
@@ -23,10 +23,10 @@ export default function Home() {
   const member = user !== null;
   const region = regions.find((r) => r.code === regionCode) ?? null;
 
-  // 새로고침해도 A의 세션 쿠키가 살아 있으면 로그인 상태를 복원한다.
+  // 새로고침 시 A 세션 쿠키로 로그인 상태 복원
   useEffect(() => { api.me().then((env) => { if (env.status === "success" && env.data) setUser(env.data); }); }, []);
 
-  // 지역 선택지와 대표 좌표는 B가 관리한다 - 화면은 하드코딩하지 않는다.
+  // 지역 선택지와 대표 좌표는 B에서 조회
   useEffect(() => {
     api.listRegions().then((env) => {
       if (env.status === "success") { setRegions(env.data); setRegionCode(env.data[0]?.code ?? null); }
@@ -34,7 +34,7 @@ export default function Home() {
     });
   }, []);
 
-  // effect 안에서도 쓰이므로 참조가 매 렌더 바뀌지 않게 고정한다.
+  // effect에서도 쓰므로 참조 고정
   const openLogin = useCallback(() => setDialog("login"), []);
   const onAuthed = (next: api.User) => { setUser(next); setDialog(null); setSignup(false); };
   const doLogout = async () => { await api.logout(); setUser(null); setTab("planner"); };
@@ -95,8 +95,7 @@ function Landing({ onStart, onTab, onLogin }: { onStart: () => void; onTab: (tab
 function TabButton({ active, icon, text, onClick }: { active: boolean; icon: "course" | "recommend" | "mypage"; text: string; onClick: () => void }) { return <button className={active ? "tab active" : "tab"} onClick={onClick}><span className={`tab-icon tab-icon-${icon}`} aria-hidden="true" />{text}</button>; }
 
 function Planner({ regions, region, regionError, setRegionCode, budget, setBudget, member, onNeedLogin }: { regions: api.Region[]; region: api.Region | null; regionError: string | null; setRegionCode: (v: string) => void; budget: string; setBudget: (v: string) => void; member: boolean; onNeedLogin: () => void }) {
-  // 기본값은 화면을 연 날 기준 오늘 ~ 모레(2박 3일). 날짜를 고정해두면 시간이
-  // 지나 과거 날짜가 되고, 예측 집중률(오늘부터 30일치)도 붙지 않는다.
+  // 기본값은 오늘 ~ 모레 (예측 집중률은 오늘부터 30일치)
   const [startDate, setStartDate] = useState(() => api.localIsoDate(0));
   const [endDate, setEndDate] = useState(() => api.localIsoDate(2));
   const [plan, setPlan] = useState<api.PlanView | null>(null);
@@ -126,12 +125,12 @@ function Planner({ regions, region, regionError, setRegionCode, budget, setBudge
     setSaveError(null);
     const env = await api.savePlan(plan);
     if (env.status === "success") { setSaved(true); return; }
-    // 세션이 끊긴 경우엔 문구 대신 로그인 창을 띄운다.
+    // 세션이 끊기면 문구 대신 로그인 창 표시
     if (api.needsLogin(env)) { onNeedLogin(); return; }
     setSaveError(api.errorMessage(env));
   };
 
-  // 집중률이 높은 한 곳만 교체한다 (D_frontend.md 7절: 무엇이 바뀌었는지 알린다).
+  // 집중률이 높은 한 곳만 교체
   const replaceItem = async (item: api.PlanItem) => {
     if (!plan) return;
     setReplanning(item.content_id); setReplanNotice(null);
@@ -191,7 +190,7 @@ type PicksResult = { key: string; places: api.Place[]; rates: Record<string, api
 function Realtime({ region, regionError, member, onLogin }: { region: api.Region | null; regionError: string | null; member: boolean; onLogin: () => void }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [result, setResult] = useState<PicksResult | null>(null);
-  // 지역/재시도가 바뀌면 key가 달라지고, 결과 key가 따라잡을 때까지 로딩으로 본다.
+  // 결과 key가 현재 key를 따라잡을 때까지 로딩 상태
   const key = `${region?.code ?? ""}#${reloadKey}`;
   const mapX = region?.map_x;
   const mapY = region?.map_y;
@@ -203,8 +202,7 @@ function Realtime({ region, regionError, member, onLogin }: { region: api.Region
       const env = await api.nearby(mapX, mapY);
       if (cancelled) return;
       if (env.status !== "success") { setResult({ key, places: [], rates: {}, message: api.errorMessage(env) }); return; }
-      // 집중률 실패는 관광지 목록 표시를 막지 않는다 (D_frontend.md 9절).
-      // 이름을 함께 넘겨 B가 관광지당 상세조회를 또 하지 않게 한다.
+      // 집중률 실패는 목록 표시를 막지 않음, 이름을 넘겨 상세 재조회 생략
       const cong = await api.congestion(env.data, todayYmd());
       if (cancelled) return;
       setResult({ key, places: env.data, rates: cong.status === "success" ? cong.data : {}, message: null });
@@ -242,8 +240,7 @@ function MyPage({ user, open, setOpen, onLogin, onInvite, onLogout }: { user: ap
   const [detailFor, setDetailFor] = useState<number | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  // 목록에는 제목/날짜/개수만 있다. 상세는 A가 B에 실시간 재조회한 현재
-  // 관광지 정보까지 합쳐서 내려준다.
+  // 목록은 요약만, 상세는 A가 B 실시간 정보와 합쳐서 제공
   const openDetail = async (planId: number) => {
     setDetailFor(planId); setDetail(null); setDetailError(null);
     const env = await api.getPlanDetail(planId);
@@ -260,14 +257,14 @@ function MyPage({ user, open, setOpen, onLogin, onInvite, onLogout }: { user: ap
     api.listPlans().then((env) => {
       if (cancelled) return;
       if (env.status === "success") setLoaded({ userId, plans: env.data, message: null });
-      // 세션이 끊겼으면 목록 대신 로그인 창으로 보낸다.
+      // 세션이 끊기면 로그인 창으로 이동
       else if (api.needsLogin(env)) onLogin();
       else setLoaded({ userId, plans: [], message: api.errorMessage(env) });
     });
     return () => { cancelled = true; };
   }, [user, onLogin]);
 
-  // 로그아웃 후 다른 계정으로 로그인해도 이전 계정의 목록이 잠깐 보이지 않게 한다.
+  // 계정 전환 시 이전 계정 목록이 보이지 않게 초기화
   const current = user && loaded && loaded.userId === user.user_id ? loaded : null;
   const plans = current?.plans ?? [];
   const message = current?.message ?? null;
@@ -355,7 +352,7 @@ function Signup({ onBack, onAuthed }: { onBack: () => void; onAuthed: (user: api
     setPending(true); setError(null);
     const created = await api.register(username, password);
     if (created.status !== "success") { setPending(false); setError(api.errorMessage(created)); return; }
-    // 가입 직후 바로 로그인해 세션 쿠키를 받는다 (A의 register는 쿠키를 주지 않는다).
+    // 가입 직후 로그인해 세션 쿠키 발급 (register는 쿠키를 주지 않음)
     const env = await api.login(username, password);
     setPending(false);
     if (env.status === "success" && env.data) onAuthed(env.data);

@@ -44,7 +44,7 @@ def test_save_and_list_plan(client):
     list_resp = client.get("/plans")
     assert list_resp.status_code == 200
     saved = next(p for p in list_resp.json() if p["plan_id"] == plan_id)
-    # 순서와 항목이 그대로 저장/조회되는지 (plan_item.item_order)
+    # 순서와 항목이 그대로 저장/조회되는지 확인
     assert [i["content_id"] for i in saved["items"]] == ["126508", "126509"]
     assert [i["order"] for i in saved["items"]] == [1, 2]
 
@@ -69,7 +69,7 @@ def test_get_plan_detail_merges_live_place_info(client, monkeypatch):
     assert detail_resp.status_code == 200
     body = detail_resp.json()
     assert body["items"][0]["current"]["name"] == "현재이름"
-    # 장소마다 따로 부르지 않고 저장된 장소를 한 번에 조회해야 한다.
+    # 저장된 장소를 한 번에 조회해야 함
     assert len(calls) == 1
     assert calls[0] == [i["content_id"] for i in body["items"]]
 
@@ -90,7 +90,7 @@ def test_get_plan_detail_survives_b_failure(client, monkeypatch):
 
 
 def test_delete_plan_records_deletion_instead_of_deleting(client):
-    """앱 계정은 DELETE 권한이 없다 - 삭제 기록을 추가하고 조회에서 뺀다."""
+    """삭제 시 삭제 기록 추가 후 조회에서 제외"""
     _register_and_login(client)
     plan_id = client.post("/plans", json=_sample_plan_payload()).json()["plan_id"]
 
@@ -103,11 +103,11 @@ def test_delete_plan_records_deletion_instead_of_deleting(client):
 
     with database.transaction() as cur:
         cur.execute("SELECT COUNT(*) AS n FROM `plan` WHERE `plan_id` = %s", (plan_id,))
-        assert cur.fetchone()["n"] == 1  # 원본은 남아 있고
+        assert cur.fetchone()["n"] == 1  # 원본은 유지
         cur.execute("SELECT COUNT(*) AS n FROM `plan_deletion` WHERE `plan_id` = %s", (plan_id,))
-        assert cur.fetchone()["n"] == 1  # 삭제 기록이 추가됐다
+        assert cur.fetchone()["n"] == 1  # 삭제 기록 추가됨
 
-    # 두 번 삭제하면 이미 없는 일정이다.
+    # 두 번째 삭제는 없는 일정으로 처리
     assert client.delete(f"/plans/{plan_id}").status_code == 404
 
 
@@ -119,7 +119,7 @@ def test_nonexistent_plan_id_returns_404(client):
 
 def test_expired_session_is_rejected(client, monkeypatch):
     _register_and_login(client)
-    # 세션 만료 시각이 지난 것처럼 인증 모듈의 시계만 앞으로 돌린다.
+    # 인증 모듈 시계만 앞당겨 세션 만료 재현
     future = time.time() + config.SESSION_TTL_SECONDS + 60
     monkeypatch.setattr(auth, "time", SimpleNamespace(time=lambda: future))
 
@@ -135,15 +135,15 @@ def test_cannot_access_other_users_plan(client):
 
     _register_and_login(client)
     assert client.get(f"/plans/{plan_id}").status_code == 404
-    # 남의 일정은 삭제 기록도 남길 수 없다.
+    # 남의 일정은 삭제 기록도 남길 수 없음
     assert client.delete(f"/plans/{plan_id}").status_code == 404
 
 
-# --- 세션이 프로세스 메모리가 아니라 DB에 있는지 --------------------------------
+# --- 세션 DB 저장 ---
 
 
 def test_session_is_persisted_in_db(client):
-    """서버를 재시작해도 로그인이 유지되려면 세션이 DB에 있어야 한다."""
+    """재시작 후에도 로그인 유지되도록 세션은 DB에 있어야 함"""
     user_id = _register_and_login(client)
     with database.transaction() as cur:
         cur.execute("SELECT `token_hash`, `expires_at` FROM `session` WHERE `user_id` = %s", (user_id,))
@@ -153,7 +153,7 @@ def test_session_is_persisted_in_db(client):
 
 
 def test_session_token_is_not_stored_in_plaintext(client):
-    """DB가 유출돼도 저장된 값만으로 로그인할 수 없어야 한다."""
+    """DB 유출 시에도 저장값만으로 로그인 불가해야 함"""
     _register_and_login(client)
     token = client.cookies.get("session_id")
     assert token
@@ -168,7 +168,7 @@ def test_session_token_is_not_stored_in_plaintext(client):
 
 
 def test_logout_records_revocation(client):
-    """앱 계정은 DELETE 권한이 없다 - 세션을 지우지 않고 폐기 기록을 추가한다."""
+    """로그아웃 시 세션 삭제 대신 폐기 기록 추가"""
     _register_and_login(client)
     token_hash = hashlib.sha256(client.cookies.get("session_id").encode()).hexdigest()
     client.post("/auth/logout")
@@ -181,7 +181,7 @@ def test_logout_records_revocation(client):
 
 
 def test_logout_with_unknown_cookie_does_not_add_records(client):
-    """아무 쿠키 값으로 로그아웃을 불러 기록을 쌓을 수 없어야 한다."""
+    """임의 쿠키 값으로는 폐기 기록이 쌓이지 않아야 함"""
     fake = make_unique_name("fake")
     client.cookies.set("session_id", fake)
     client.post("/auth/logout")

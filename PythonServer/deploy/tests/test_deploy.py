@@ -1,7 +1,4 @@
-"""Offline deployment checks. Never load .env or connect to MySQL/external APIs.
-
-Run: python -B -m unittest discover -s deploy/tests -v
-"""
+"""오프라인 배포 점검 (.env 로드, MySQL/외부 API 접속 없음)"""
 import contextlib
 import importlib.util
 import io

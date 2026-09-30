@@ -1,4 +1,4 @@
-"""mock이 shared.schemas 계약과 일치하는지, 정상/데이터없음 케이스를 검증."""
+"""mock 계약 일치와 정상/데이터없음 케이스 검증"""
 
 import asyncio
 
@@ -42,7 +42,7 @@ def test_list_regions_has_name_and_coords():
     regions = region.list_regions()
     assert len(regions) > 0
     assert all(r.code and r.name for r in regions)
-    # 화면이 좌표를 들고 있지 않아도 되도록 대표 좌표가 반드시 있어야 한다.
+    # 모든 지역에 대표 좌표 필수
     assert all(isinstance(r.map_x, float) and isinstance(r.map_y, float) for r in regions)
 
 
@@ -63,10 +63,10 @@ def test_regions_endpoint_returns_list():
     assert {"code", "name", "map_x", "map_y"} <= set(body[0])
 
 
-# --- 호출 수 절감 / 카운터 ---------------------------------------------------
+# --- 호출 수 절감 / 카운터 ---
 
 def test_targets_with_names_skip_detail_lookup(monkeypatch):
-    """이름을 함께 주면 상세조회(detailCommon2)를 한 번도 부르지 않아야 한다."""
+    """이름을 주면 상세조회를 부르지 않아야 함"""
     from shared.schemas import CongestionTarget
 
     detail_calls = []
@@ -101,7 +101,7 @@ def test_targets_without_names_resolve_via_detail(monkeypatch):
 
 
 def test_candidate_cap_applies_before_detail_lookup(monkeypatch):
-    """예전에는 상한이 집중률에만 걸려서 상세조회는 전부 나갔다."""
+    """후보 상한이 상세조회에도 적용되는지 확인"""
     from shared.schemas import CongestionTarget
 
     detail_calls = []
@@ -119,7 +119,7 @@ def test_candidate_cap_applies_before_detail_lookup(monkeypatch):
 
 
 def test_metrics_counts_and_reports_quota(mysql_db, monkeypatch):
-    """호출 1건마다 1행을 추가하고 COUNT로 센다 (앱 계정에 UPDATE 권한이 없다)."""
+    """호출마다 1행 추가 후 COUNT로 계수"""
     from B_openapi import metrics
 
     monkeypatch.setattr(metrics.config, "KTO_DAILY_QUOTA", 100)
@@ -139,12 +139,12 @@ def test_metrics_endpoint(mysql_db):
     from B_openapi.main import app
 
     body = TestClient(app).get("/internal/metrics").json()
-    assert body["total"] == 0  # 고유한 날짜라 아직 기록이 없다
+    assert body["total"] == 0  # 고유 날짜라 기록 없음
     assert "by_operation" in body
 
 
 def test_metrics_survive_process_restart(mysql_db, isolated_metrics_day, monkeypatch):
-    """포털 일일 한도는 재시작과 무관하게 누적된다 - 카운터도 살아남아야 한다."""
+    """재시작 후에도 카운터 유지"""
     import importlib
 
     from B_openapi import metrics
@@ -152,7 +152,7 @@ def test_metrics_survive_process_restart(mysql_db, isolated_metrics_day, monkeyp
     metrics.record("locationBasedList2")
     metrics.record("tatsCnctrRatedList")
 
-    # 프로세스가 죽었다 살아난 상황: 모듈 전역 상태 없이 같은 DB만 다시 읽는다.
+    # 모듈 상태 없이 같은 DB만 다시 읽는 상황
     reloaded = importlib.reload(metrics)
     monkeypatch.setattr(reloaded, "_today", lambda: isolated_metrics_day)
     assert reloaded.snapshot()["total"] == 2
@@ -163,13 +163,13 @@ def test_metrics_history_includes_today(mysql_db, isolated_metrics_day):
 
     metrics.record("locationBasedList2")
     snap = metrics.snapshot(days=10000)
-    # 다른 테스트가 남긴 날짜와 섞이므로 순서가 아니라 날짜로 찾는다.
+    # 다른 테스트 기록과 섞이므로 날짜로 조회
     entry = next(e for e in snap["history"] if e["date"] == isolated_metrics_day.isoformat())
     assert entry["total"] == 1
 
 
 def test_metrics_record_failure_does_not_break_api_calls(monkeypatch):
-    """카운터 DB가 죽어도 관광공사 호출은 계속되어야 한다."""
+    """카운터 DB 장애 시에도 관광공사 호출 유지"""
     from B_openapi import metrics
     from shared import database
 
@@ -181,7 +181,7 @@ def test_metrics_record_failure_does_not_break_api_calls(monkeypatch):
 
 
 def test_metrics_uses_korean_date():
-    """EC2 서버 시간대(UTC)와 무관하게 한국 날짜로 센다."""
+    """서버 시간대와 무관하게 한국 날짜로 계수"""
     import importlib
     from datetime import datetime, timedelta, timezone
 
@@ -191,16 +191,16 @@ def test_metrics_uses_korean_date():
     assert fresh._today() == datetime.now(timezone(timedelta(hours=9))).date()
 
 
-# --- 검색 반경 단일화 / 뽑힌 장소만 상세정보 --------------------------------------
+# --- 검색 반경 단일화 / 뽑힌 장소만 상세정보 ---
 
 
 def test_location_req_default_radius_is_5km():
-    """반경 기본값은 공통 계약에서 한 번만 정한다 (추천 탭과 코스 생성이 같은 범위)."""
+    """반경 기본값은 공통 계약에서 한 번만 정의"""
     assert LocationReq(map_x=126.5, map_y=33.45).radius == 5000
 
 
 def test_get_places_passes_request_radius_through(monkeypatch):
-    """B는 반경을 바꾸지 않고 요청 값을 그대로 관광공사 API에 넘긴다."""
+    """요청 반경을 그대로 관광공사 API에 전달"""
     captured = {}
 
     async def fake_fetch(map_x, map_y, radius):
@@ -253,7 +253,7 @@ def test_place_detail_merges_intro_and_cleans_html(monkeypatch):
 
 
 def test_place_detail_finds_type_specific_intro_fields(monkeypatch):
-    """유형마다 필드 이름이 다르다 (예: 문화시설 usetimeculture)."""
+    """유형별 필드 이름 대응 (예: 문화시설 usetimeculture)"""
     _real_mode_detail_fakes(
         monkeypatch, intro_payload={"usetimeculture": "09:00~18:00", "restdateculture": "매주 월요일"}
     )

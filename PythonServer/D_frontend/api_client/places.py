@@ -1,8 +1,4 @@
-"""B(한국관광공사 연동)를 호출하는 모듈.
-
-D는 관광공사 API를 직접 호출하지 않는다 - 반드시 B를 거친다
-(D_frontend.md 11, 14절). 좌표는 이 함수 안에서만 쓰고 로그로 남기지 않는다.
-"""
+"""B 호출 모듈 (좌표는 로그에 남기지 않음)"""
 
 from __future__ import annotations
 
@@ -16,7 +12,7 @@ async def regions() -> list[dict]:
 
 
 async def nearby(map_x: float, map_y: float, radius: int | None = None) -> list[dict]:
-    """radius가 None이면 보내지 않는다 - 공통 계약(LocationReq)의 기본 반경이 쓰인다."""
+    """radius가 None이면 생략해 공통 계약 기본 반경 사용"""
     body: dict = {"map_x": map_x, "map_y": map_y}
     if radius is not None:
         body["radius"] = radius
@@ -27,7 +23,7 @@ async def nearby(map_x: float, map_y: float, radius: int | None = None) -> list[
 
 
 async def congestion(targets, area_cd: str = "50", l_dong_signgu_cd: str = "110") -> dict:
-    """targets: CongestionTarget 목록. 이름이 있으면 B가 상세조회를 건너뛴다."""
+    """targets: CongestionTarget 목록, 이름이 있으면 B가 상세조회 생략"""
 
     resp = await _http.request(
         "B", config.B_BASE_URL, "POST", "/internal/congestion",

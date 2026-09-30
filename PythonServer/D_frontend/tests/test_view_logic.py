@@ -60,10 +60,10 @@ def test_error_context_timeout_is_retryable():
     assert "관광지 정보를 불러오지 못했습니다" in ctx["message"]
 
 
-# --- 에러 코드 전달 / 집중률 분리 ---------------------------------------------
+# --- 에러 코드 전달 / 집중률 분리 ---
 
 def test_error_context_carries_code_for_auth_required():
-    """화면이 "로그인 필요"와 "서버 오류"를 구분할 수 있어야 한다."""
+    """화면이 로그인 필요와 서버 오류를 구분할 수 있어야 함"""
     exc = UpstreamRejectedError("A", 401, "AUTH_REQUIRED", "로그인이 필요합니다.")
     ctx = view_logic.error_context("plan_save", exc)
     assert ctx["code"] == "AUTH_REQUIRED"
@@ -85,7 +85,7 @@ def test_error_context_without_code_uses_context_message():
 
 
 def test_plan_display_context_uses_explicit_congestion_fields():
-    """note가 LLM 문구로 덮여도 집중률 판정이 살아 있어야 한다."""
+    """note가 LLM 문구로 덮여도 집중률 판정 유지"""
     plan = {
         "title": "t", "summary": "s", "travel_date": "20260828",
         "items": [{

@@ -1,21 +1,4 @@
-"""서버 세션 + HttpOnly Cookie 인증 (A_backend_auth.md 4절).
-
-체크리스트: HttpOnly / Secure / SameSite / CORS / CSRF / 세션 만료 /
-로그아웃 / 비회원 접근.
-
-- HttpOnly: 쿠키에 httponly=True (JS에서 쿠키를 읽을 수 없음 -> XSS로 인한
-  세션 탈취 방지).
-- Secure: config.COOKIE_SECURE (운영에서는 반드시 true, HTTPS 필수).
-- SameSite: config.COOKIE_SAMESITE (기본 Lax). D가 별도 origin이면 요청 시
-  credentials: "include" + CORS allow_credentials=True 가 필요하다.
-- CSRF: 쿠키 기반 세션은 state-changing 요청(POST/DELETE)에 CSRF 위험이
-  있다. SameSite=Lax/Strict가 1차 방어이고, cross-site로 운영해야 한다면
-  CSRF 토큰을 추가로 검증해야 한다 (TODO: 프로젝트 배포 형태 확정 후 결정).
-- 세션 만료: SESSION_TTL_SECONDS. 만료된 토큰은 SessionExpiredError.
-- 로그아웃: 서버 세션 스토어에서 즉시 삭제 + 쿠키 삭제.
-- 비회원 접근: get_current_user_optional()은 로그인 없이도 None을 반환해
-  일정 생성 등 비회원 허용 API에서 쓸 수 있게 한다.
-"""
+"""서버 세션 + HttpOnly 쿠키 인증"""
 
 from __future__ import annotations
 
@@ -28,20 +11,11 @@ from fastapi import Request, Response
 from . import config, db
 from .errors import AuthRequiredError, SessionExpiredError
 
-# 세션 저장소는 DB다 (session 테이블). 프로세스 메모리에 두면 서버를
-# 재시작하거나 배포할 때마다 접속 중인 사용자가 전부 로그아웃되고, 예고 없는
-# 크래시/호스트 재부팅에도 같은 일이 생긴다. SESSION_TTL_SECONDS(7일)를
-# 실제로 지키려면 프로세스 밖에 있어야 한다.
-# 앱 계정은 DELETE 권한이 없어서 로그아웃은 폐기 기록을 추가하는 방식이다.
+# 세션은 재시작해도 유지되도록 DB에 저장, 로그아웃은 폐기 기록 추가 방식
 
 
 def _token_hash(token: str) -> str:
-    """DB에는 토큰 원문 대신 해시를 저장한다.
-
-    비밀번호와 달리 토큰은 128비트 랜덤이라 무차별 대입이 불가능하므로,
-    느린 KDF 없이 SHA-256으로 충분하다. DB가 유출돼도 저장된 값만으로는
-    로그인할 수 없다.
-    """
+    """토큰 원문 대신 SHA-256 해시 저장 (128비트 랜덤이라 느린 KDF 불필요)"""
 
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -57,7 +31,7 @@ def _lookup(token: str) -> int | None:
 
 
 def delete_session(token: str) -> None:
-    """로그아웃. 이후 이 토큰으로는 로그인 상태가 되지 않는다."""
+    """로그아웃 처리"""
 
     db.revoke_session(_token_hash(token))
 
@@ -79,7 +53,7 @@ def clear_session_cookie(response: Response) -> None:
 
 
 def get_current_user_optional(request: Request) -> int | None:
-    """비회원 접근 허용 API용. 로그인 안 했으면 None."""
+    """비회원 허용 API용, 미로그인 시 None"""
 
     token = request.cookies.get(config.SESSION_COOKIE_NAME)
     if not token:
@@ -88,7 +62,7 @@ def get_current_user_optional(request: Request) -> int | None:
 
 
 def get_current_user_required(request: Request) -> int:
-    """로그인 필수 API용 (예: 일정 저장, 마이페이지)."""
+    """로그인 필수 API용"""
 
     token = request.cookies.get(config.SESSION_COOKIE_NAME)
     if not token:

@@ -1,9 +1,4 @@
-"""B 서비스 진입점.
-
-A/C가 내부적으로 호출하는 HTTP 계약 (A_backend_auth.md 5절: "필요한 경우
-B에게 내부 service 호출 계약을 정의해 둔다"). 좌표가 포함된 요청은 반드시
-POST JSON body로 받는다 (query string 금지 - B_openapi.md 9절).
-"""
+"""B 서비스 진입점: A/C/D가 호출하는 내부 HTTP API (좌표는 POST body로만)"""
 
 from __future__ import annotations
 
@@ -27,12 +22,7 @@ from . import client, config, metrics, region, service
 from .exceptions import InvalidUpstreamPayloadError, UpstreamAPIError, UpstreamTimeoutError
 
 def _wire_logging() -> None:
-    """uvicorn은 자기 로거("uvicorn.error" 등)에만 핸들러를 단다.
-
-    우리 로거는 root로 propagate 되는데 root에 핸들러가 없어서 INFO 로그가
-    조용히 버려진다(WARNING만 lastResort로 stderr에 찍힌다). uvicorn의
-    핸들러를 빌려 붙여서 관광공사 호출 로그가 실제로 남게 한다.
-    """
+    """관광공사 호출 INFO 로그가 남도록 uvicorn 핸들러를 앱 로거에 연결"""
 
     app_logger = logging.getLogger("B_openapi")
     if app_logger.handlers:
@@ -68,13 +58,13 @@ def _to_error_response(exc: Exception) -> ErrorResponse:
 
 @app.get("/internal/regions", response_model=list[Region])
 async def regions():
-    """지역 선택지 + 대표 좌표. 화면이 좌표를 들고 있지 않게 하기 위한 것이다."""
+    """지역 선택지와 대표 좌표"""
     return region.list_regions()
 
 
 @app.post("/internal/places/nearby", response_model=list[Place])
 async def places_nearby(req: LocationReq):
-    """좌표는 요청 처리에만 쓰고 로그로 남기지 않는다."""
+    """좌표는 요청 처리에만 쓰고 로그에 남기지 않음"""
     try:
         return await service.get_places(req)
     except (UpstreamTimeoutError, UpstreamAPIError, InvalidUpstreamPayloadError) as exc:
@@ -83,15 +73,12 @@ async def places_nearby(req: LocationReq):
 
 @app.post("/internal/places/details", response_model=list[Place])
 async def place_details(req: PlaceDetailsRequest):
-    """최종 일정에 뽑힌 장소들만 상세정보(소개문/운영시간/휴무일)를 한 번에 조회.
-
-    장소별 조회는 병렬로 돌고, 실패한 장소는 결과에서 빠진다.
-    """
+    """최종 일정 장소들의 상세정보 병렬 조회 (실패한 장소는 제외)"""
     return await service.get_place_details(req.content_ids)
 
 
 class CongestionBatchRequest(BaseModel):
-    """targets 로 이름까지 주면 상세조회를 건너뛴다 (관광지당 2회 -> 1회)."""
+    """이름을 함께 주면 상세조회 생략"""
 
     targets: list[CongestionTarget] = []
     area_cd: str = "50"
@@ -110,10 +97,7 @@ async def congestion_batch(req: CongestionBatchRequest):
 
 @app.get("/internal/metrics")
 async def kto_metrics(days: int = 7):
-    """오늘 나간 관광공사 API 호출 수와 일일 한도 소진율 (+ 최근 이력).
-
-    DB에 남기므로 B를 재시작해도 값이 유지된다.
-    """
+    """오늘 관광공사 API 호출 수와 한도 소진율, 최근 이력"""
     return metrics.snapshot(days)
 
 

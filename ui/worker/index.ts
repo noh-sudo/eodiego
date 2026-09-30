@@ -1,12 +1,12 @@
-/** Cloudflare Worker entry point. */
+/** Cloudflare Worker 진입점 */
 import handler from "vinext/server/app-router-entry";
 
 interface Env {
-  /** 정적 파일 바인딩. vinext 핸들러가 public/ 파일을 내려줄 때 쓴다. */
+  /** 정적 파일 바인딩 (public/ 제공용) */
   ASSETS: { fetch(request: Request): Promise<Response> };
-  /** D(BFF)의 base URL. 없으면 /ui/* 프록시를 하지 않는다. */
+  /** D(BFF) base URL, 없으면 /ui/* 프록시 안 함 */
   BFF_BASE_URL?: string;
-  /** D가 요구하는 공유 시크릿. 이 worker를 거친 요청임을 증명한다. */
+  /** D가 요구하는 공유 시크릿 */
   BFF_GATEWAY_TOKEN?: string;
 }
 
@@ -19,17 +19,14 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    // 화면이 부르는 /ui/* 는 D(BFF)로 그대로 넘긴다. 같은 origin으로 유지해야
-    // 세션 쿠키가 CORS 제약 없이 오간다 (dev 서버의 server.proxy와 같은 역할).
-    // `vinext start`는 워커를 Node에서 돌리며 env를 넘기지 않으므로 둘 다 본다.
+    // /ui/*는 같은 origin 유지를 위해 D로 프록시 (vinext start는 env 대신 process.env 사용)
     if (url.pathname.startsWith("/ui/")) {
       const bffBaseUrl =
         env?.BFF_BASE_URL || (typeof process !== "undefined" ? process.env?.BFF_BASE_URL : undefined);
       if (bffBaseUrl) {
         const target = new URL(url.pathname + url.search, bffBaseUrl);
         const proxied = new Request(target, request);
-        // 공유 시크릿을 붙여 "화면을 거친 요청"임을 D에 증명한다. 브라우저가
-        // 보낸 같은 이름의 헤더는 여기서 덮어쓰므로 위조할 수 없다.
+        // 브라우저가 보낸 같은 이름의 헤더는 덮어써 위조 방지
         const gatewayToken =
           env?.BFF_GATEWAY_TOKEN ||
           (typeof process !== "undefined" ? process.env?.BFF_GATEWAY_TOKEN : undefined);

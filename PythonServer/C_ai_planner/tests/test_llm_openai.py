@@ -1,4 +1,4 @@
-"""OpenAI 연동 검증. 실제 API는 부르지 않고 SDK 클라이언트를 가짜로 바꾼다."""
+"""OpenAI 연동 검증 (SDK 클라이언트를 가짜로 교체)"""
 
 import asyncio
 import importlib
@@ -61,7 +61,7 @@ def test_success_maps_notes_and_records_usage(mysql_db):
     result = asyncio.run(client.generate_plan_text("20260920", None, PLACES))
 
     assert result.title == "도심 속 제주 산책"
-    assert result.item_notes == {"1": "도심 속 공원에서 쉬어가요."}  # 빈 문구는 버린다
+    assert result.item_notes == {"1": "도심 속 공원에서 쉬어가요."}  # 빈 문구 폐기
 
     snap = llm_usage.snapshot()
     assert snap["requests"] == 1
@@ -81,10 +81,10 @@ def test_request_uses_configured_model_structured_output_and_no_storage(mysql_db
 
     payload = json.loads(call["input"])
     overview = payload["places"][0]["overview"]
-    # 소개문은 길이 상한을 둔다 (토큰 절약)
+    # 소개문 길이 상한 (토큰 절약)
     assert len(overview) <= config.LLM_OVERVIEW_MAX_CHARS + 1
     assert payload["places"][1]["overview"] == ""
-    # 키가 프롬프트에 섞이면 안 된다
+    # 키가 프롬프트에 섞이면 안 됨
     assert "sk-test" not in call["input"] and "sk-test" not in call["instructions"]
 
 
@@ -97,7 +97,7 @@ def test_daily_limit_blocks_before_calling_api(mysql_db, monkeypatch):
     with pytest.raises(LLMQuotaExceededError):
         asyncio.run(client.generate_plan_text("20260920", None, PLACES))
 
-    assert len(fake.calls) == 2  # 3번째는 API를 부르지 않았다
+    assert len(fake.calls) == 2  # 3번째는 API 호출 안 함
     assert llm_usage.snapshot()["remaining"] == 0
 
 
@@ -116,7 +116,7 @@ def test_provider_errors_are_mapped_and_still_count_against_limit(mysql_db):
         client, _ = _client(error=error)
         with pytest.raises(expected):
             asyncio.run(client.generate_plan_text("20260920", None, PLACES))
-    # 실패한 요청도 제공사 한도를 깎으므로 예약 횟수에 포함된다.
+    # 실패한 요청도 예약 횟수에 포함
     assert llm_usage.snapshot()["requests"] == len(cases)
 
 
@@ -138,7 +138,7 @@ def test_get_llm_client_selects_openai_only_when_enabled_with_key(monkeypatch):
     monkeypatch.setattr(config, "LLM_API_KEY", "sk-test")
     first = llm_client.get_llm_client()
     assert isinstance(first, OpenAILLMClient)
-    assert llm_client.get_llm_client() is first  # 클라이언트를 요청마다 새로 만들지 않는다
+    assert llm_client.get_llm_client() is first  # 클라이언트를 요청마다 새로 만들지 않음
 
 
 def test_usage_survives_restart(mysql_db, isolate_llm, monkeypatch):
@@ -149,7 +149,7 @@ def test_usage_survives_restart(mysql_db, isolate_llm, monkeypatch):
 
 
 def test_reserve_fails_closed_when_db_unavailable(monkeypatch):
-    """한도를 확인할 수 없으면 부르지 않는다 - 모르고 계정 한도를 넘기지 않게."""
+    """한도를 확인할 수 없으면 호출 안 함"""
     from shared import database
 
     def broken_transaction():
@@ -160,7 +160,7 @@ def test_reserve_fails_closed_when_db_unavailable(monkeypatch):
 
 
 def test_limit_is_enforced_in_a_single_insert_select(mysql_db, monkeypatch):
-    """확인과 추가를 한 문장으로 해서, 상한에서 딱 멈춘다."""
+    """확인과 추가를 한 문장으로 해서 상한에서 정확히 멈춤"""
     monkeypatch.setattr(config, "LLM_DAILY_REQUEST_LIMIT", 3)
     results = [llm_usage.try_reserve() for _ in range(5)]
     assert results == [True, True, True, False, False]

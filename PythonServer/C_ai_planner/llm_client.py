@@ -1,19 +1,4 @@
-"""LLM 설명 생성 (C_ai_planner.md 8, 9, 10절).
-
-LLM은 오직 "자연어 설명"만 만든다: 일정 제목, 전체 설명, 관광지별 추천
-이유. 관광지 선정/실제 집중률 값 판단/최종 후보 검증은 절대 LLM에게 맡기지
-않는다. 재추천 사유는 내용이 정해져 있어 LLM 없이 템플릿으로 만든다
-(replanner.replan_reason_text).
-
-환각 방지 (RAG):
-- 근거 자료는 이번 요청에서 관광공사 API로 실시간 조회한 값만 넣는다
-  (최종 일정에 뽑힌 장소의 소개문 + 예측 집중률 라벨). 저장된 데이터는 쓰지 않는다.
-- 출력은 구조화 출력(JSON 스키마)으로 강제한다.
-- LLM이 돌려준 content_id는 실제 일정 항목과 대조하고, 근거 자료에 없는 숫자가
-  들어간 문구는 버린다.
-- LLM이 실패(timeout/오류/한도 초과/검증 실패)해도 규칙 기반 결과 + 기본 문구로
-  계속 동작한다 - LLM은 single point of failure가 아니다.
-"""
+"""LLM 설명 생성 (제목/요약/추천 이유만 담당, 실패 시 기본 문구로 폴백)"""
 
 from __future__ import annotations
 
@@ -33,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlaceContext(BaseModel):
-    """LLM에 근거 자료로 넘기는 장소 정보. 이번 요청에서 실시간으로 조회한 값이다."""
+    """LLM 근거 자료용 장소 정보 (이번 요청에서 실시간 조회한 값)"""
 
     content_id: str
     name: str
@@ -56,7 +41,7 @@ class LLMInvalidOutputError(Exception):
 
 
 class LLMQuotaExceededError(Exception):
-    """하루 요청 상한 도달(우리 상한) 또는 제공사 429."""
+    """하루 요청 상한 도달 또는 제공사 429"""
 
 
 class LLMClient(abc.ABC):
@@ -68,7 +53,7 @@ class LLMClient(abc.ABC):
 
 
 class MockLLMClient(LLMClient):
-    """실제 LLM 없이도 C/D 개발이 가능하도록 하는 결정론적 구현."""
+    """LLM 없이 동작하는 결정론적 구현"""
 
     async def generate_plan_text(
         self, travel_date: str, theme: str | None, places: list[PlaceContext]
@@ -80,7 +65,7 @@ class MockLLMClient(LLMClient):
         return LLMPlanText(title=title, summary=summary, item_notes=item_notes)
 
 
-# --- OpenAI ------------------------------------------------------------------
+# --- OpenAI ---
 
 
 class _ItemNoteOut(BaseModel):
@@ -89,7 +74,7 @@ class _ItemNoteOut(BaseModel):
 
 
 class _PlanTextOut(BaseModel):
-    """구조화 출력 스키마. 모델은 이 형태의 JSON만 돌려줄 수 있다."""
+    """구조화 출력 JSON 스키마"""
 
     title: str
     summary: str
@@ -117,7 +102,7 @@ def _truncate(text: str | None, limit: int) -> str:
 
 
 def build_llm_input(theme: str | None, places: list[PlaceContext]) -> str:
-    """근거 자료를 모델 입력 문자열로 만든다. 소개문은 길이 상한을 둔다(토큰 절약)."""
+    """근거 자료를 모델 입력 문자열로 변환 (소개문 길이 상한 적용)"""
 
     payload = {
         "theme": theme,
@@ -135,11 +120,7 @@ def build_llm_input(theme: str | None, places: list[PlaceContext]) -> str:
 
 
 class OpenAILLMClient(LLMClient):
-    """OpenAI Responses API + 구조화 출력.
-
-    하루 요청 상한(config.LLM_DAILY_REQUEST_LIMIT)을 넘기면 API를 부르지 않는다.
-    SDK 자동 재시도도 한도를 깎으므로 기본은 재시도 없음(config.LLM_MAX_RETRIES).
-    """
+    """OpenAI Responses API + 구조화 출력 (하루 상한 초과 시 호출 안 함)"""
 
     def __init__(self, api_key: str, client: AsyncOpenAI | None = None):
         self._client = client or AsyncOpenAI(
@@ -162,13 +143,12 @@ class OpenAILLMClient(LLMClient):
                 text_format=_PlanTextOut,
                 reasoning={"effort": config.LLM_REASONING_EFFORT},
                 max_output_tokens=config.LLM_MAX_OUTPUT_TOKENS,
-                store=False,  # 요청/응답을 OpenAI 쪽에 보관하지 않는다.
+                store=False,  # 요청/응답을 OpenAI 쪽에 보관하지 않음
             )
         except openai.APITimeoutError as exc:
             raise LLMTimeoutError("LLM 응답 지연") from exc
         except openai.RateLimitError as exc:
-            # OpenAI는 요청 한도 초과(rate_limit_exceeded)와 크레딧 부족
-            # (insufficient_quota)을 모두 429로 준다. 코드를 남겨야 구분된다.
+            # 요청 한도 초과와 크레딧 부족이 모두 429라 코드로 구분
             raise LLMQuotaExceededError(f"제공사 429 code={getattr(exc, 'code', None)}") from exc
         except (openai.OpenAIError, ValidationError) as exc:
             # 인증 실패, 잘못된 요청, 연결 오류, 스키마 불일치 등
@@ -196,7 +176,7 @@ _openai_client: OpenAILLMClient | None = None
 
 
 def get_llm_client() -> LLMClient:
-    """USE_LLM=true 이고 키가 있으면 OpenAI, 아니면 결정론적 스텁."""
+    """USE_LLM=true이고 키가 있으면 OpenAI, 아니면 결정론적 스텁"""
 
     global _openai_client
     if config.USE_LLM and config.LLM_API_KEY:
@@ -206,7 +186,7 @@ def get_llm_client() -> LLMClient:
     return MockLLMClient()
 
 
-# --- 검증 --------------------------------------------------------------------
+# --- 검증 ---
 
 _NUMBER_RE = re.compile(r"\d+")
 
@@ -216,7 +196,7 @@ def _numbers(text: str | None) -> set[str]:
 
 
 def _has_unsupported_numbers(text: str, allowed: set[str]) -> bool:
-    """근거 자료에 없는 숫자가 문구에 들어갔는지. 숫자는 가장 흔한 환각 형태다."""
+    """근거 자료에 없는 숫자가 문구에 있는지 확인"""
 
     return any(n not in allowed for n in _numbers(text))
 
@@ -228,11 +208,10 @@ async def safe_generate_plan_text(
     places: list[PlaceContext],
     allowed_content_ids: set[str],
 ) -> LLMPlanText | None:
-    """LLM 결과를 검증하고, 실패/부정확하면 None을 반환해 호출측이 기본
-    문구로 fallback 하도록 한다 (10절)."""
+    """LLM 결과 검증, 부적합하면 None으로 기본 문구 폴백"""
 
     if not places:
-        return None  # 쓸 장소가 없으면 요청 한도를 쓰지 않는다.
+        return None  # 쓸 장소가 없으면 요청 한도를 쓰지 않음
 
     try:
         result = await asyncio.wait_for(
@@ -245,7 +224,7 @@ async def safe_generate_plan_text(
 
     sources = {p.content_id: p for p in places}
 
-    # 제목/요약: 자료 전체(+여행 날짜)에 없는 숫자가 있으면 통째로 버린다.
+    # 제목/요약에 자료에 없는 숫자가 있으면 전체 폐기
     all_numbers = _numbers(travel_date) | _numbers(theme)
     for p in places:
         all_numbers |= _numbers(p.name) | _numbers(p.overview)
@@ -260,7 +239,7 @@ async def safe_generate_plan_text(
 
     notes: dict[str, str] = {}
     for cid, note in result.item_notes.items():
-        # LLM이 존재하지 않는 content_id를 만들어냈으면 그 항목만 버린다.
+        # 존재하지 않는 content_id 항목만 폐기
         if cid not in allowed_content_ids or cid not in sources:
             continue
         place = sources[cid]

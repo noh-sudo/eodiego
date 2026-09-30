@@ -1,6 +1,4 @@
-"""A/B/C 호출 공통 헬퍼. 화면 코드(=이 서버의 main.py) 안에 fetch/httpx
-호출을 직접 여러 번 흩어놓지 않기 위해 api_client 모듈로 분리했다
-(D_frontend.md 12절의 "src/api/*.js 분리"를 서버 쪽에서 동일하게 적용)."""
+"""A/B/C 호출 공통 헬퍼"""
 
 from __future__ import annotations
 

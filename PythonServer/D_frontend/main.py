@@ -1,13 +1,4 @@
-"""D 비즈니스 로직 서버 (BFF).
-
-이미 만들어진 HTML/JS 화면이 fetch로 호출하는 JSON API만 제공한다.
-화면(HTML/CSS)은 이 파일에서 만들지 않는다.
-
-라우트는 D_frontend.md의 화면 단위(주변 관광지/집중률/일정/재추천/저장/
-마이페이지/인증)에 맞춰 나눴다. 실제 관광공사·LLM 호출은 각각 B/C가
-담당하고, 이 서버는 좌표/세션 쿠키를 그대로 넘기기만 한다 - 좌표를 로그로
-남기지 않는다(14절).
-"""
+"""D 서비스 진입점 (BFF): 화면용 JSON API, 실제 호출은 A/B/C로 프록시"""
 
 from __future__ import annotations
 
@@ -45,12 +36,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def _require_gateway_token(request: Request, call_next):
-    """화면(worker/dev 프록시)을 거친 요청만 통과시킨다.
-
-    배포하면 D의 주소가 공개되므로, 이 검사가 없으면 누구나 브라우저 없이
-    /ui/* 를 직접 호출할 수 있다. BFF_GATEWAY_TOKEN이 비어 있으면(로컬 개발)
-    검사하지 않는다.
-    """
+    """화면을 거친 요청만 통과 (BFF_GATEWAY_TOKEN이 비면 검사 안 함)"""
 
     if config.GATEWAY_TOKEN and request.url.path.startswith("/ui/"):
         supplied = request.headers.get(config.GATEWAY_HEADER, "")
@@ -73,15 +59,11 @@ def _handle(context_key: str, exc: Exception) -> dict:
     return view_logic.status_envelope("error", data=view_logic.error_context(context_key, exc))
 
 
-# ---------------------------------------------------------------------------
-# 인증 (로그인/로그아웃/회원가입/현재 사용자) - A로 프록시
-# ---------------------------------------------------------------------------
+# --- 인증 (A로 프록시) ---
 
 
 class CredentialsBody(BaseModel):
-    """dict로 받아 body["username"]로 꺼내면 필드 누락 시 KeyError -> 500이 나고,
-    화면은 봉투 대신 평문 "Internal Server Error"를 받는다. 모델로 받아
-    422 검증 오류로 처리한다."""
+    """필드 누락 시 500 대신 422가 되도록 모델로 수신"""
 
     username: str
     password: str
@@ -104,7 +86,7 @@ async def login(body: CredentialsBody, response: Response):
         return _handle("auth", exc)
 
     if token:
-        # max_age가 없으면 세션 쿠키가 되어 브라우저를 닫는 순간 로그아웃된다.
+        # max_age가 없으면 브라우저를 닫을 때 로그아웃됨
         response.set_cookie(
             key=config.SESSION_COOKIE_NAME,
             value=token,
@@ -119,7 +101,7 @@ async def login(body: CredentialsBody, response: Response):
 
 @app.post("/ui/auth/logout")
 async def logout(request: Request, response: Response):
-    # A가 죽어 있어도 브라우저 쪽 세션은 반드시 끊어준다.
+    # A 장애 시에도 브라우저 세션은 해제
     try:
         await auth_client.logout(_session_token(request))
     except (UpstreamUnavailableError, UpstreamRejectedError):
@@ -130,8 +112,7 @@ async def logout(request: Request, response: Response):
 
 @app.get("/ui/auth/me")
 async def me(request: Request):
-    # 화면이 진입할 때마다 가장 먼저 부르는 API다. 여기서 500이 나면
-    # 첫 화면부터 봉투 계약이 깨진다 - 반드시 error 봉투로 돌려준다.
+    # 화면 진입 시 첫 API라 오류도 반드시 envelope로 반환
     try:
         user = await auth_client.me(_session_token(request))
     except (UpstreamUnavailableError, UpstreamRejectedError) as exc:
@@ -139,14 +120,12 @@ async def me(request: Request):
     return view_logic.status_envelope("success", data=user)
 
 
-# ---------------------------------------------------------------------------
-# 주변 관광지 / 집중률 - B로 프록시 (좌표는 POST JSON으로만 받는다)
-# ---------------------------------------------------------------------------
+# --- 주변 관광지 / 집중률 (B로 프록시, 좌표는 POST body로만) ---
 
 
 @app.get("/ui/regions")
 async def regions():
-    """지역 선택지 - 화면이 좌표를 하드코딩하지 않도록 B에서 받아 그대로 넘긴다."""
+    """지역 선택지 (B에서 받아 그대로 전달)"""
     try:
         items = await places_client.regions()
     except (UpstreamUnavailableError, UpstreamRejectedError) as exc:
@@ -170,7 +149,7 @@ async def places_nearby(req: LocationReq):
 
 
 class CongestionBody(BaseModel):
-    """targets(이름 포함)를 주면 B가 상세 재조회를 건너뛴다."""
+    """targets(이름 포함)를 주면 B가 상세 재조회 생략"""
 
     travel_date: str
     targets: list[CongestionTarget] = []
@@ -187,7 +166,7 @@ async def places_congestion(body: CongestionBody):
             body.targets, body.area_cd, body.l_dong_signgu_cd
         )
     except (UpstreamUnavailableError, UpstreamRejectedError) as exc:
-        # 집중률 실패는 일정 생성 자체를 막지 않는다 - 관광지 정보만으로 계속한다.
+        # 집중률 실패는 일정 생성을 막지 않음
         return _handle("congestion", exc)
 
     shaped = {}
@@ -202,9 +181,7 @@ async def places_congestion(body: CongestionBody):
     return view_logic.status_envelope("success", data=shaped)
 
 
-# ---------------------------------------------------------------------------
-# AI 일정 생성 / 재추천 - C로 프록시
-# ---------------------------------------------------------------------------
+# --- AI 일정 생성 / 재추천 (C로 프록시) ---
 
 
 @app.post("/ui/plan/generate")
@@ -225,9 +202,7 @@ async def replan(req: ReplanRequest):
     return view_logic.status_envelope("success", data=view_logic.replan_result_context(result))
 
 
-# ---------------------------------------------------------------------------
-# 저장 일정 - A로 프록시 (로그인 필요, A가 401/AUTH_REQUIRED로 걸러준다)
-# ---------------------------------------------------------------------------
+# --- 저장 일정 (A로 프록시, 로그인 필요) ---
 
 
 @app.post("/ui/plans")

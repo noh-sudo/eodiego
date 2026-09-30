@@ -1,9 +1,4 @@
-"""C가 B의 HTTP 계약을 호출하는 얇은 클라이언트.
-
-C는 관광공사 원본 API를 직접 호출하지 않고 B의 service를 통해서만
-Place/Congestion을 얻는다 (역할 분리를 A_backend_auth.md 5절과 동일하게
-C에도 적용).
-"""
+"""C가 B의 내부 API를 호출하는 클라이언트"""
 
 from __future__ import annotations
 
@@ -19,7 +14,7 @@ class BServiceError(Exception):
 
 
 async def get_nearby_places(map_x: float, map_y: float, radius: int | None = None) -> list[Place]:
-    """radius를 주지 않으면 공통 계약(LocationReq)의 기본 반경을 쓴다 (제주 추천 탭과 동일)."""
+    """radius 미지정 시 공통 계약(LocationReq) 기본 반경 사용"""
 
     if radius is None:
         req = LocationReq(map_x=map_x, map_y=map_y)
@@ -36,7 +31,7 @@ async def get_nearby_places(map_x: float, map_y: float, radius: int | None = Non
 
 
 async def get_place_details(content_ids: list[str]) -> dict[str, Place]:
-    """최종 일정에 뽑힌 장소들의 상세정보. content_id -> Place."""
+    """최종 일정 장소들의 상세정보 (content_id -> Place)"""
 
     if not content_ids:
         return {}
@@ -53,7 +48,7 @@ async def get_place_details(content_ids: list[str]) -> dict[str, Place]:
 async def get_congestion_map(
     places: list[Place], area_cd: str = "50", l_dong_signgu_cd: str = "110"
 ) -> dict[str, Congestion]:
-    """이미 조회해 둔 Place의 이름을 함께 넘겨 B의 상세 재조회를 생략시킨다."""
+    """이미 조회한 이름을 넘겨 B의 상세 재조회 생략"""
 
     if not places:
         return {}

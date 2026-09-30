@@ -1,4 +1,4 @@
-"""Check D -> B through /ui/regions without paid calls or database writes."""
+"""/ui/regions로 D -> B 연결 점검 (유료 호출·DB 쓰기 없음)"""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        # Never forward the gateway secret to a redirect destination.
+        # 리다이렉트 대상에 게이트웨이 시크릿 전달 금지
         return None
 
 
@@ -52,7 +52,7 @@ def main() -> int:
             raise ValueError("valid token: expected a success envelope with non-empty regions")
         print("PASS: authenticated /ui/regions, including D -> B")
     except (URLError, TimeoutError, OSError, ValueError) as exc:
-        # Do not print response bodies, headers, credentials or driver errors.
+        # 응답 본문/헤더/자격 증명/드라이버 오류 미출력
         message = str(exc) if type(exc) is ValueError else type(exc).__name__
         print(f"FAIL: {message}", file=sys.stderr)
         return 1

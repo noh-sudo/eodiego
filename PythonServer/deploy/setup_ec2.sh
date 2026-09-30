@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ubuntu 24.04 installer. Never starts an unconfigured application.
+# Ubuntu 24.04 설치 스크립트 (설정 전에는 앱을 시작하지 않음)
 set -euo pipefail
 if [[ ${EUID} -ne 0 ]]; then
   echo 'Run with sudo bash deploy/setup_ec2.sh' >&2
@@ -20,7 +20,7 @@ fi
 for service in A_backend B_openapi C_ai_planner D_frontend; do
   [[ -f "${source_dir}/${service}/requirements.txt" ]]
 done
-# Confine rsync --delete to the fixed installation path, with no symlink.
+# rsync --delete를 심볼릭 링크 없는 고정 설치 경로로 제한
 if [[ $(readlink -m "${app_dir}") != /opt/eodiego/app ]]; then
   echo 'Refusing a symlinked installation path.' >&2
   exit 1

@@ -1,4 +1,4 @@
-"""C 서비스 진입점 (C_ai_planner.md 13절 완료 조건의 HTTP 경계)."""
+"""C 서비스 진입점"""
 
 from __future__ import annotations
 
@@ -14,8 +14,7 @@ from .replanner import NoReplacementCandidateError
 
 
 def _wire_logging() -> None:
-    """uvicorn은 자기 로거에만 핸들러를 달아서 우리 INFO 로그(LLM 토큰 사용량,
-    기본 문구 전환 사유)가 버려진다. uvicorn의 핸들러를 빌려 붙인다."""
+    """LLM INFO 로그가 남도록 uvicorn 핸들러를 앱 로거에 연결"""
 
     app_logger = logging.getLogger("C_ai_planner")
     if app_logger.handlers:
@@ -39,7 +38,7 @@ app = FastAPI(title="C - AI 일정/재추천 서비스", lifespan=_lifespan)
 
 @app.get("/internal/llm-usage")
 async def llm_usage_report():
-    """오늘(UTC) LLM 요청 수 / 하루 상한 / 토큰 사용량."""
+    """오늘(UTC) LLM 요청 수, 하루 상한, 토큰 사용량"""
     return llm_usage.snapshot()
 
 

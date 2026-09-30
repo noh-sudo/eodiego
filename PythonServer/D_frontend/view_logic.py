@@ -1,18 +1,11 @@
-"""화면(이미 만들어진 HTML/JS)이 그대로 쓸 수 있도록 API 응답을 표시용으로
-가공하는 순수 로직. 렌더링(HTML/CSS)은 만들지 않는다 - 여기서는 dict/문구만
-만들고, 기존 화면의 JS가 이 값을 자기 DOM에 꽂아 넣는다.
-
-D_frontend.md 6, 7, 9, 10절 규칙을 그대로 코드로 옮긴 것이다.
-"""
+"""API 응답을 화면 표시용으로 가공하는 순수 로직"""
 
 from __future__ import annotations
 
 from . import config
 from .api_client.errors import UpstreamRejectedError, UpstreamUnavailableError
 
-# ---------------------------------------------------------------------------
-# 6절: 집중률 UI - "실시간 혼잡도"처럼 표현하지 않는다.
-# ---------------------------------------------------------------------------
+# --- 집중률 UI ("실시간 혼잡도" 표현 금지) ---
 
 
 def congestion_label(rate: float | None, has_data: bool) -> str:
@@ -29,32 +22,17 @@ def is_high_congestion(rate: float | None, has_data: bool) -> bool:
     return has_data and rate is not None and rate >= config.CONGESTION_DISPLAY_THRESHOLD
 
 
-# ---------------------------------------------------------------------------
-# 5절: 일정 화면 - order/visit_time/note/summary를 활용해 카드 형태로 가공.
-# ---------------------------------------------------------------------------
+# --- 일정 화면 카드 가공 ---
 
 
 def plan_display_context(plan: dict) -> dict:
-    """Plan(dict) -> 화면이 바로 반복 렌더링할 수 있는 형태.
-
-    반환 예:
-    {
-      "title": "제주 1일 코스",
-      "summary": "...",
-      "travel_date": "20260828",
-      "items": [
-        {"order": 1, "visit_time": "10:00", "name": "보덕사", "note": "..."},
-        ...
-      ],
-    }
-    """
+    """Plan -> 화면 반복 렌더링용 dict (title/summary/travel_date/items)"""
 
     items = sorted(plan.get("items", []), key=lambda i: i["order"])
     result_items = []
     for i in items:
         note = i.get("note") or "혼잡도 예측 정보 없음"
-        # C가 congestion_label/high_congestion을 따로 내려준다. note는 LLM
-        # 설명으로 덮이므로 note 문자열 비교는 폴백으로만 쓴다.
+        # 집중률은 C가 따로 내려준 값 우선, note 비교는 폴백
         label = i.get("congestion_label") or (note if note.startswith("예측 집중률") else None)
         high = bool(i.get("high_congestion")) or note == "예측 집중률 높음"
         entry = {
@@ -65,7 +43,7 @@ def plan_display_context(plan: dict) -> dict:
             "note": note,
             "congestion_label": label or "혼잡도 예측 정보 없음",
             "high_congestion": high,
-            # 최종 일정에 뽑힌 장소의 상세정보 (소개문/운영시간/휴무일). 없으면 None.
+            # 최종 일정 장소의 상세정보, 없으면 None
             "detail": i.get("detail"),
         }
         if high:
@@ -80,9 +58,7 @@ def plan_display_context(plan: dict) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# 7절: 재추천 UX - 특정 항목만 바뀌었음을 명확히 알려준다.
-# ---------------------------------------------------------------------------
+# --- 재추천 UX: 바뀐 항목 표시 ---
 
 
 def replan_prompt(item_name: str) -> dict:
@@ -100,13 +76,10 @@ def replan_result_context(replan_response: dict) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# 9절: API 오류 UI - "알 수 없는 오류"로 뭉뚱그리지 않는다.
-# ---------------------------------------------------------------------------
+# --- API 오류 UI ---
 
 
-# 상류(A/B/C)가 준 에러 코드별 문구. 상황을 아는 코드가 오면 화면 맥락보다
-# 이쪽을 우선한다 - 회원가입 실패에 "비밀번호를 확인해주세요"가 뜨던 문제.
+# 상류(A/B/C) 에러 코드별 문구 (화면 맥락보다 우선)
 _CODE_MESSAGES: dict[str, str] = {
     "SESSION_EXPIRED": "세션이 만료되었습니다.\n다시 로그인해주세요.",
     "AUTH_REQUIRED": "로그인이 필요합니다.",
@@ -131,11 +104,7 @@ _FRIENDLY_MESSAGES: dict[str, str] = {
 
 
 def error_context(context_key: str, exc: Exception) -> dict:
-    """API 호출 실패를 화면에 보여줄 {message, retryable} 형태로 변환한다.
-
-    - has_data=False(정상, 데이터 없음)는 이 함수를 타지 않는다. 이 함수는
-      진짜 API 실패(UpstreamUnavailableError/UpstreamRejectedError)만 다룬다.
-    """
+    """실제 API 실패를 {message, retryable} 형태로 변환 (데이터 없음은 제외)"""
 
     code = exc.code if isinstance(exc, UpstreamRejectedError) else None
     message = _CODE_MESSAGES.get(code) if code else None
@@ -146,19 +115,15 @@ def error_context(context_key: str, exc: Exception) -> dict:
         isinstance(exc, UpstreamRejectedError) and exc.status_code >= 500
     )
 
-    # code를 그대로 실어 보낸다. 이게 없으면 화면이 "로그인이 필요함"과
-    # "서버 오류"를 구분하지 못해 로그인 창을 띄울 수 없다.
+    # 화면이 로그인 창을 띄울 수 있도록 code 포함
     return {"message": message, "retryable": retryable, "code": code}
 
 
-# ---------------------------------------------------------------------------
-# 10절: 로딩/빈 상태 - 화면이 status 필드 하나로 분기할 수 있게 감싼다.
-# ---------------------------------------------------------------------------
+# --- 로딩/빈 상태 envelope ---
 
 
 def status_envelope(status: str, data=None, empty_message: str | None = None) -> dict:
-    """status: "success" | "empty" | "error". "loading"은 화면(JS)이 요청
-    시작 시 자체적으로 표시하므로 서버가 내려줄 필요는 없다."""
+    """status: success | empty | error (loading은 화면이 자체 표시)"""
 
     envelope = {"status": status}
     if status in ("success", "error"):

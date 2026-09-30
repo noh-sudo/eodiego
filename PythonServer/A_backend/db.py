@@ -1,15 +1,4 @@
-"""DB 접근 계층 (A_backend_auth.md 3절) - MySQL.
-
-DB에는 회원/인증 정보와 우리가 만든 일정 정보만 저장한다. 관광공사 원본
-데이터는 저장하지 않고, plan_item에는 content_id를 참조값으로만 저장한다.
-좌표는 절대 저장하지 않는다.
-
-- 테이블 정의는 db/schema.sql 에만 있다. 이 파일에는 DDL이 없다.
-- 앱 계정은 SELECT, INSERT 권한만 있다. 그래서 지우거나 고치지 않고 기록을 추가한다:
-    로그아웃  -> session_revocation 에 폐기 기록 추가
-    일정 삭제 -> plan_deletion 에 삭제 기록 추가
-- 모든 쿼리는 파라미터 바인딩으로 SQL Injection을 막는다.
-"""
+"""A의 MySQL 접근 계층 (SELECT/INSERT 전용, 삭제·로그아웃은 기록 추가 방식)"""
 
 from __future__ import annotations
 
@@ -24,21 +13,19 @@ class DuplicateUserError(Exception):
 
 
 def ping() -> None:
-    """서버 기동 시 DB 접속과 테이블 존재를 확인한다 (없으면 바로 실패)."""
+    """기동 시 DB 접속과 테이블 존재 확인"""
 
     with database.transaction() as cur:
         cur.execute("SELECT 1 FROM `user` LIMIT 1")
 
 
 def _utc(epoch_seconds: float) -> datetime:
-    """DB의 DATETIME은 시간대가 없으므로 항상 UTC로 넣고 UTC로 비교한다."""
+    """DATETIME은 시간대가 없어 UTC 기준으로 저장·비교"""
 
     return datetime.fromtimestamp(epoch_seconds, timezone.utc).replace(tzinfo=None)
 
 
-# ---------------------------------------------------------------------------
-# 회원
-# ---------------------------------------------------------------------------
+# --- 회원 ---
 
 
 def create_user(username: str, password_hash: str) -> int:
@@ -71,9 +58,7 @@ def get_user_by_id(user_id: int) -> dict | None:
         return cur.fetchone()
 
 
-# ---------------------------------------------------------------------------
-# 저장 일정
-# ---------------------------------------------------------------------------
+# --- 저장 일정 ---
 
 
 def create_plan(user_id: int, title: str, travel_date: str, items: list[PlanItem]) -> int:
@@ -92,7 +77,7 @@ def create_plan(user_id: int, title: str, travel_date: str, items: list[PlanItem
     return plan_id
 
 
-# 삭제 기록이 있는 일정은 조회에서 뺀다.
+# 삭제 기록이 있는 일정 제외 조건
 _NOT_DELETED = "NOT EXISTS (SELECT 1 FROM `plan_deletion` d WHERE d.`plan_id` = p.`plan_id`)"
 
 
@@ -147,7 +132,7 @@ def get_plan(user_id: int, plan_id: int) -> SavedPlan | None:
 
 
 def delete_plan(user_id: int, plan_id: int) -> bool:
-    """삭제 기록을 추가한다. 본인 일정이고 아직 삭제되지 않았을 때만 기록된다."""
+    """본인 일정이고 미삭제일 때만 삭제 기록 추가"""
 
     with database.transaction() as cur:
         cur.execute(
@@ -159,9 +144,7 @@ def delete_plan(user_id: int, plan_id: int) -> bool:
         return cur.rowcount > 0
 
 
-# ---------------------------------------------------------------------------
-# 세션 (A_backend_auth.md 4절) - auth.py가 이 함수들만 사용한다.
-# ---------------------------------------------------------------------------
+# --- 세션 ---
 
 
 def create_session(token_hash: str, user_id: int, expires_at: float) -> None:
@@ -173,7 +156,7 @@ def create_session(token_hash: str, user_id: int, expires_at: float) -> None:
 
 
 def get_session_user(token_hash: str, now: float) -> int | None:
-    """만료되지 않았고 폐기(로그아웃) 기록도 없는 세션이면 user_id, 아니면 None."""
+    """유효한 세션이면 user_id, 아니면 None"""
 
     with database.transaction() as cur:
         cur.execute(
@@ -187,11 +170,7 @@ def get_session_user(token_hash: str, now: float) -> int | None:
 
 
 def revoke_session(token_hash: str) -> None:
-    """로그아웃: 세션을 지우지 않고 폐기 기록을 추가한다.
-
-    존재하는 세션일 때만 기록한다 - 아무 쿠키 값으로 로그아웃을 불러 기록을
-    쌓는 것을 막는다.
-    """
+    """존재하는 세션일 때만 폐기 기록 추가"""
 
     with database.transaction() as cur:
         cur.execute(

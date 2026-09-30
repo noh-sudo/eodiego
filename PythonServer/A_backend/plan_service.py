@@ -1,9 +1,4 @@
-"""일정 저장/조회/삭제 (A_backend_auth.md 5절).
-
-저장 일정 상세 조회 흐름:
-DB -> content_id 목록 조회 -> B의 실시간 관광정보 조회 -> 현재 관광공사
-데이터와 결합 -> D에 반환. DB에서 관광공사 상세정보를 직접 가져오지 않는다.
-"""
+"""일정 저장/조회/삭제, 상세 조회 시 B의 현재 관광정보와 결합"""
 
 from __future__ import annotations
 
@@ -45,11 +40,11 @@ async def get_plan_detail(user_id: int, plan_id: int) -> PlanDetail:
     if saved is None:
         raise PlanNotFoundError(f"plan_id={plan_id} 를 찾을 수 없습니다.")
 
-    # 저장된 장소만, 한 번에(B가 병렬로) 조회한다.
+    # 저장된 장소를 B에서 한 번에 조회
     try:
         current_by_id = await b_client.get_place_details([i.content_id for i in saved.items])
     except b_client.BServiceError:
-        # B 호출이 실패해도 저장된 기본 정보로는 화면을 계속 보여준다.
+        # B 호출이 실패해도 저장된 기본 정보로 응답
         current_by_id = {}
 
     detail_items: list[PlanDetailItem] = [

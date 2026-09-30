@@ -1,13 +1,4 @@
-"""전체 테스트 공통 설정 - MySQL 테스트 DB.
-
-- 접속 정보는 앱과 똑같이 .env 의 DB_* 를 쓴다 (앱 계정 eodiegoServer, SELECT/INSERT 전용).
-  그래서 테스트가 통과하면 "그 권한만으로 기능이 동작한다"는 것도 함께 검증된다.
-- DB 이름만 항상 테스트용(TEST_DB_NAME, 기본 eodiego_test)으로 바꾼다.
-  운영 DB(eodiego)에는 절대 쓰지 않는다.
-- 앱 계정은 DELETE 권한이 없어 테스트가 끝나도 데이터를 지우지 못한다. 대신
-  아이디/날짜를 테스트마다 고유하게 만들어 서로 섞이지 않게 한다.
-- 테스트 DB가 없으면(db/setup_local.sql 미실행) DB가 필요한 테스트는 이유와 함께 건너뛴다.
-"""
+"""전체 테스트 공통 설정: .env의 DB_* 계정으로 테스트 DB(eodiego_test) 사용"""
 
 import os
 from pathlib import Path
@@ -33,7 +24,7 @@ _load_db_env()
 
 @pytest.fixture(scope="session")
 def mysql_db():
-    """테스트 DB 접속 + 테이블 존재 확인. 안 되면 건너뛴다."""
+    """테스트 DB 접속과 테이블 확인, 실패 시 건너뜀"""
 
     from shared import database
 

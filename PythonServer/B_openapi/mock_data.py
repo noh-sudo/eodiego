@@ -1,9 +1,4 @@
-"""C/D가 실제 API 없이 개발할 수 있도록 하는 mock (B_openapi.md 2절).
-
-mock은 실제 API 응답 구조를 흉내 내는 게 아니라, 우리 서비스 내부 계약
-(shared.schemas)을 보장하는 것이 목적이다. 실제 API로 교체해도 이 함수들의
-반환 타입/구조가 같으므로 C/D 코드 변경이 최소화된다.
-"""
+"""실제 API 없이 개발·테스트용 mock (shared.schemas 계약 준수)"""
 
 from __future__ import annotations
 
@@ -82,7 +77,7 @@ _MOCK_PLACES: list[dict] = [
     ),
 ]
 
-# content_id -> 집중률 데이터. 일부러 하나는 has_data=False로 둔다.
+# content_id -> 집중률 데이터 (하나는 has_data=False)
 _MOCK_CONGESTION: dict[str, dict] = {
     "126508": {"rate_by_date": {"20260826": 42.0, "20260827": 55.0, "20260828": 76.0}},
     "126509": {"rate_by_date": {"20260826": 20.0, "20260827": 18.0, "20260828": 25.0}},
