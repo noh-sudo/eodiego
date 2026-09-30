@@ -29,6 +29,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 운영 서버용 env 파일 (예: eodiego.env)
+*.env
+# 값이 비어 있는 템플릿은 커밋한다
+!.env.example
 
 # vercel
 .vercel
