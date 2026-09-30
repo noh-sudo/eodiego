@@ -36,7 +36,37 @@
 
 - 어느 화면에서든 동일한 로그인 창 제공
 - 회원가입 화면과 입력 폼 제공
-- 현재 버전에서는 화면 동작 확인을 위한 프런트엔드 상태로 구현되어 있습니다.
+- 백엔드(A 인증) 세션 쿠키로 로그인 상태 유지
+
+## 프로젝트 구조
+
+```
+eodiego/
+├── ui/              # 화면 (vinext + Cloudflare Worker, /ui/* 는 D로 프록시)
+│   ├── app/         # 페이지, 스타일, D(BFF) API 클라이언트
+│   ├── worker/      # Worker 진입점
+│   └── public/      # 이미지, 폰트, 아이콘
+└── PythonServer/    # 백엔드 (FastAPI)
+    ├── A_backend/     # 인증, 일정 저장 (:8000)
+    ├── B_openapi/     # 한국관광공사 OpenAPI, 집중률 (:8001)
+    ├── C_ai_planner/  # AI 일정 생성, 재추천 (:8002)
+    ├── D_frontend/    # 화면 전용 BFF (:8003)
+    ├── shared/        # 공통 스키마, DB 연결
+    ├── db/            # MySQL 스키마와 계정 SQL
+    ├── deploy/        # EC2 배포 (systemd, nginx, 점검 스크립트)
+    └── scripts/       # 로컬 실행 스크립트
+```
+
+## 로컬 실행
+
+```bash
+cd ui && npm ci && cd ..
+cd PythonServer
+cp .env.example .env      # 값 채우기
+bash scripts/run_local.sh # A/B/C/D + 화면(http://localhost:5173)
+```
+
+EC2·RDS 배포 절차는 [PythonServer/deploy/DEPLOYMENT.md](PythonServer/deploy/DEPLOYMENT.md)를 참고하세요.
 
 ## 디자인 특징
 

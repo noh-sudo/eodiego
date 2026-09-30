@@ -9,7 +9,7 @@ from __future__ import annotations
 from shared.schemas import Region
 
 # 화면의 지역 선택지와 위치기반 검색에 쓸 대표 좌표.
-# 화면(D_frontend/eodiego)이 좌표를 하드코딩하지 않도록 여기서만 관리한다.
+# 화면(ui/)이 좌표를 하드코딩하지 않도록 여기서만 관리한다.
 # 다른 지역을 추가/삭제하려면 이 목록만 고치면 된다.
 SEARCH_REGIONS: list[Region] = [
     Region(code="jeju-si", name="제주시", map_x=126.5312, map_y=33.4996),

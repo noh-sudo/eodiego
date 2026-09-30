@@ -1,68 +1,34 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# --- ui (vinext / Cloudflare Worker) ----------------------------------------
+/ui/node_modules/
+/ui/dist/
+/ui/.next/
+/ui/.wrangler/
+/ui/coverage/
+next-env.d.ts
+*.tsbuildinfo
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# --- 환경변수 / 시크릿 - 절대 커밋하지 않는다 ---------------------------------
+# 서비스키·LLM 키·DB 비밀번호는 전부 여기로만 들어온다.
 .env*
 # 운영 서버용 env 파일 (예: eodiego.env)
 *.env
 # 값이 비어 있는 템플릿은 커밋한다
 !.env.example
+*.pem
 
-# vercel
-.vercel
-
-# typescript
-next-env.d.ts
-/dist/
-/.wrangler/
-/.sites-runtime/
-/outputs/
-/work/
-
-# 환경변수 / 시크릿 - 절대 커밋하지 않는다.
-# 서비스키·LLM 키는 전부 여기로만 들어온다 (A_backend_auth.md 1절,
-# B_openapi.md 1절 "하드코딩 금지").
-
-
-# 파이썬
+# --- PythonServer -----------------------------------------------------------
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
 venv/
-
 # A의 로컬 SQL
 *.db
-
 # run_local.sh 의 pid/로그
 .run/
 
-# 에디터/OS
+# --- 에디터/OS --------------------------------------------------------------
+.DS_Store
 .idea/
 .vscode/

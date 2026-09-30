@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 로컬에서 A/B/C/D + 화면(eodiego)을 한 번에 띄운다.
+# 로컬에서 A/B/C/D + 화면(../ui)을 한 번에 띄운다.
 #
 # 시크릿은 인자로 넘기지 않고 .env(=.gitignore 대상)에서만 읽는다.
 # 명령줄이나 ps 출력에 서비스키가 남지 않도록 export 로만 전달한다.
@@ -74,12 +74,9 @@ start_service D D_frontend.main:app "${D_PORT:-8003}"
 # 화면은 이 폴더의 상위가 됐다. 예전처럼 하위에 둔 구조도 계속 지원한다.
 web_dir="${WEB_DIR:-}"
 if [[ -z "${web_dir}" ]]; then
-  for candidate in "${root}/.." "${root}/eodiego"; do
-    if [[ -f "${candidate}/package.json" ]]; then
-      web_dir="$(cd "${candidate}" && pwd)"
-      break
-    fi
-  done
+  if [[ -f "${root}/../ui/package.json" ]]; then
+    web_dir="$(cd "${root}/../ui" && pwd)"
+  fi
 fi
 
 if [[ -n "${web_dir}" && -x "${web_dir}/node_modules/.bin/vite" ]]; then
